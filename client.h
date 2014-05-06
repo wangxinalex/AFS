@@ -19,9 +19,13 @@
 #ifndef  CLIENT_H_INC
 #define  CLIENT_H_INC
 #define MAX_NAME 30
-#define MIN(a,b) ((a)<(b)?(a):(b))
 #define COMMAND_NUM 11
 #define FORMAT_ERR 1
+#define SOCKET_ERR 2
+#define FILE_ERR 3
+inline size_t min(size_t a, size_t b){
+	return a<b?a:b;
+}
 using namespace std;
 class file_node {
 	friend ostream& operator<<(ostream&, const file_node&);
@@ -33,13 +37,17 @@ class file_node {
 	int file_des;
 	int callback;
 	public:
-	file_node():file_uid(0), callback(0), file_des(-1){}
-	file_node(int uid, char *name,int des, int cb){
+	file_node():file_uid(0), file_des(-1), callback(0){}
+	file_node(int uid, char *name, int des = -1, int cb = 0){
+		memset(file_name,0,sizeof(file_name));
 		file_uid = uid;
-		strncpy(file_name, name, MIN(MAX_NAME,strlen(name)));
+		strncpy(file_name, name, min(MAX_NAME,strlen(name)));
 		file_des = des;
 		callback = cb;
 	}
+	int get_file_des(){return file_des;}
+	int get_file_uid(){return file_uid;}
+	char* get_file_name(){return file_name;}
 };				/* ----------  end of struct file_node  ---------- */
 
 class File_equ{
@@ -93,5 +101,7 @@ struct s_command{
 	{"quit", quit},
 };
 
+int recv_file(int sockfd, char* command);
 int echo_command(int sockfd, char * command);
+void dump_file_list(void);
 #endif   /* ----- #ifndef CLIENT_H_INC  ----- */

@@ -1,9 +1,13 @@
 CC = g++
+LDFLAGS = -lpthread
+CFLAGS = -O2 -g -Wall
+SERVER = server
+CLIENT = client
 ALL:
-	$(CC) -o server server.cpp -lpthread
-	$(CC) -o client client.cpp
+	$(CC) -o $(SERVER) server.cpp $(CFLAGS) $(LDFLAGS)
+	$(CC) -o $(CLIENT) client.cpp $(CFLAGS) $(LDFLAGS)
 
 .PHONY:clean
 clean:
-	rm -rf server
-	rm -rf client
+	rm -rf $(SERVER)
+	rm -rf $(CLIENT)

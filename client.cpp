@@ -28,6 +28,8 @@
 #include <iostream>
 #include <vector>
 #include <algorithm>
+#include <sys/types.h>
+#include <dirent.h>
 #include "client.h"
 #define MAX_BUF 1024
 #define PORT 32001
@@ -35,9 +37,11 @@
 #define MAX_FILE 200
 using namespace std;
 vector<file_node> file_list;
+const string client_dir = "client_dir";
+int max_file_uid = 0;
 
 int main(int argc, char* argv[]){
-	int sockfd = 0, n = 0;
+	int sockfd = 0;
 	char recvBuff[MAX_BUF];
 	struct sockaddr_in serv_addr;
 	memset(recvBuff, 0, sizeof(recvBuff));
@@ -61,24 +65,39 @@ int main(int argc, char* argv[]){
 	}
 	char input[MAX_BUF];
 
-	while(1){
-		int read_byte = 0;
-		if(fgets(input, MAX_BUF, stdin) != NULL){
-			input[strlen(input)-1] = '\0';
-			printf("Input: %s\n", input);
-			echo_command(sockfd, input);
+	DIR *dp;
+	struct dirent *dirp;
+	if((dp = opendir(client_dir.c_str()))==NULL){
+		perror("[ERROR] open directory");
+	}else{
+		while((dirp = readdir(dp)) != NULL){
+			if(strcmp(dirp->d_name, ".")==0||strcmp(dirp->d_name, "..")==0){
+				continue;
+			}
+			file_node new_file(max_file_uid++, dirp->d_name);
+			file_list.push_back(new_file);
 		}
+	}
+	dump_file_list();
+	while(fgets(input, MAX_BUF, stdin) != NULL){
+		input[strlen(input)-1] = '\0';
+		echo_command(sockfd, input);
 	}
 	return 0;
 }
 
 int echo_command(int sockfd , char * command){
 	int return_value = 0;
-	for(int i = 0; i < COMMAND_NUM; i++){
+	int i = 0;
+	for(i = 0; i < COMMAND_NUM; i++){
 		const char * func_name = command_list[i].name.c_str();
 		if(strncasecmp(command, func_name, strlen(func_name)) == 0){
 			return_value = command_list[i].func(sockfd, command);
+			break;
 		}
+	}
+	if(i == COMMAND_NUM){
+		printf("Unknown command\n");
 	}
 	return return_value;
 }
@@ -90,24 +109,39 @@ vector<file_node>::iterator get_file(int uid){
 vector<file_node>::iterator get_file(char * name){
 	return find_if(file_list.begin(), file_list.end(), File_equ_str(name));	
 }
+void dump_file_list(){
+	for(vector<file_node>::const_iterator iter = file_list.begin(); iter != file_list.end(); iter++){
+		cout << *iter;
+	}
+}
 
 int open_file(int sockfd, char* command){
-//TODO:open file
-	printf("Open\n");
 	char file_name[MAX_NAME];
-	if(sscanf(command, "open %s", file_name) == 0){
-		perror("Format error");
+	memset(file_name, 0, sizeof(file_name));
+	if(sscanf(command, "open %s", file_name) == 0||strlen(file_name)==0){
+		printf("Format error\n");
 		return FORMAT_ERR;
 	}
 	vector<file_node>::iterator iter = get_file(file_name);
 	if(iter == file_list.end()){
-		printf("No such a file\n");
-		return 2;
+		printf("No such a local file\n");
+		recv_file(sockfd, command);
+	}else if(iter->get_file_des() == 0){
+		printf("No callback promise\n");
+		recv_file(sockfd, command);
+	}else{
+			
 	}
+
+	return 0;
+}
+int recv_file(int sockfd, char* command){
+	pass_server(sockfd, command);
+
+
 	return 0;
 }
 int read_file(int sockfd, char* command){
-//TODO
 	printf("Read\n");
 	return 0;
 }
@@ -128,7 +162,10 @@ int status_file(int sockfd, char* command){
 	return 0;
 }
 int pass_server(int sockfd, char * command){
-	write(sockfd, command, strlen(command));
+	if(write(sockfd, command, strlen(command))==-1){
+		perror("[ERROR] write error");
+		return SOCKET_ERR;
+	}
 	return 0;
 }
 

@@ -1,3 +1,7 @@
 tags
 *.swp
 *.swo
+server
+client
+server_dir
+client_dir

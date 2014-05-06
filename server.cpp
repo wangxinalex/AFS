@@ -26,6 +26,8 @@
 #include <pthread.h>
 #include <vector>
 #include <iostream>
+#include <sys/types.h>
+#include <dirent.h>
 #include "server.h"
 #include <algorithm>
 #define PORT "32001"
@@ -36,6 +38,75 @@
 using namespace std;
 static int global_max_client = 0;
 vector<client> client_list;
+vector<file_node> file_list;
+const string server_dir = "server_dir";
+int max_file_uid = 0;
+
+int main(int argc, char* argv[]){
+	pthread_t thread;
+	int sock;
+	struct addrinfo hints, *res;
+	int reuseaddr = 1;
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
+	if(getaddrinfo(NULL, PORT, &hints, &res) != 0){
+		perror("[ERROR] getaddrinfo");
+		return 1;
+	}
+
+	sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+	if(sock == -1){
+		perror("[ERROR] socket");
+		return 1;
+	}
+	if(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &reuseaddr, sizeof(int))==-1){
+		perror("[ERROR] setsockopt");
+		return 1;
+	}
+
+	if(bind(sock, res->ai_addr, res->ai_addrlen) == -1){
+		perror("[ERROR] bind");
+		return 1;
+	}
+
+	freeaddrinfo(res);
+	
+	if(listen(sock, BACKLOG) == -1){
+		perror("[ERROR] listen");
+		return 1;
+	}
+
+	DIR *dp;
+	struct dirent *dirp;
+	if((dp = opendir(server_dir.c_str()))==NULL){
+		perror("[ERROR] open directory");
+	}else{
+		while((dirp = readdir(dp)) != NULL){
+			if(strcmp(dirp->d_name, ".")==0||strcmp(dirp->d_name, "..")==0){
+				continue;
+			}
+			file_node new_file(max_file_uid++, dirp->d_name);
+			file_list.push_back(new_file);
+		}
+	}
+	dump_file_list();
+
+	while(1){
+		size_t size = sizeof(struct sockaddr_in);
+		struct sockaddr_in client_addr;
+		int newsock = accept(sock, (struct sockaddr*)&client_addr, &size);
+		if(newsock == -1){
+			perror("[ERROR] accept");
+		}else{
+			printf("Find a connection from %s:%d\n", inet_ntoa(client_addr.sin_addr), htons(client_addr.sin_port));
+			pthread_create(&thread, NULL, handle, &newsock);
+		}
+
+	}
+	close(sock);
+	return 0;
+}
 
 void *handle(void *p){
 	int newsock  = *(int*)p;
@@ -44,7 +115,7 @@ void *handle(void *p){
 	int recv_byte = 0;
 	char recv_buf[BUF_LEN];
 	int return_value;
-	while(recv_byte = read(newsock, recv_buf, sizeof(recv_buf) - 1)){
+	while((recv_byte = read(newsock, recv_buf, sizeof(recv_buf) - 1)) != 0){
 		recv_buf[recv_byte] = 0;
 		printf("Received buffer: %s\n", recv_buf );
 		return_value = echo_command(new_client_id, recv_buf );
@@ -67,6 +138,7 @@ int create_file(int client_fd, char * command){
 
 int open_file(int client_fd,char * command){
 	printf("Open\n");
+	
 	return 0;
 }
 int read_file(int client_fd,char * command){
@@ -102,7 +174,9 @@ int quit(int client_fd, char* command){
 		return 1;
 	}
 	string message = "Quit";
-	write(client_sock, message.c_str(),message.size());
+	if(write(client_sock, message.c_str(),message.size()) < 0){
+		perror("[ERROR] write error");
+	}
 	close(client_sock);
 	return CLIENT_QUIT;
 }
@@ -135,57 +209,8 @@ int add_client(int sock_fd){
 	return client_fd;
 }
 
-int main(int argc, char* argv[]){
-	pthread_t thread;
-	int sock;
-	fd_set socks;
-	fd_set readsocks;
-	int maxsock;
-	struct addrinfo hints, *res;
-	int reuseaddr = 1;
-	memset(&hints, 0, sizeof(hints));
-	hints.ai_family = AF_INET;
-	hints.ai_socktype = SOCK_STREAM;
-	if(getaddrinfo(NULL, PORT, &hints, &res) != 0){
-		perror("[ERROR] getaddrinfo");
-		return 1;
+void dump_file_list(){
+	for(vector<file_node>::const_iterator iter = file_list.begin(); iter != file_list.end(); iter++){
+		cout << *iter;
 	}
-
-	sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-	if(sock == -1){
-		perror("[ERROR] socket");
-		return 1;
-	}
-	if(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &reuseaddr, sizeof(int))==-1){
-		perror("[ERROR] setsockopt");
-		return 1;
-	}
-
-	if(bind(sock, res->ai_addr, res->ai_addrlen) == -1){
-		perror("[ERROR] bind");
-		return 1;
-	}
-
-	freeaddrinfo(res);
-	
-	if(listen(sock, BACKLOG) == -1){
-		perror("[ERROR] listen");
-		return 1;
-	}
-
-	while(1){
-		size_t size = sizeof(struct sockaddr_in);
-		struct sockaddr_in client_addr;
-		int newsock = accept(sock, (struct sockaddr*)&client_addr, &size);
-		if(newsock == -1){
-			perror("[ERROR] accept");
-		}else{
-			printf("Find a connection from %s:%d\n", inet_ntoa(client_addr.sin_addr), htons(client_addr.sin_port));
-			pthread_create(&thread, NULL, handle, &newsock);
-		}
-
-	}
-	close(sock);
-	return 0;
-
 }
