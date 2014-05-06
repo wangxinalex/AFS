@@ -45,9 +45,10 @@ class file_node {
 		file_des = des;
 		callback = cb;
 	}
-	int get_file_des(){return file_des;}
-	int get_file_uid(){return file_uid;}
-	char* get_file_name(){return file_name;}
+	int get_file_des() const{return file_des;}
+	int get_file_uid() const{return file_uid;}
+	string get_file_name() const{return file_name;}
+	void set_file_des(int des) {file_des = des;}
 };				/* ----------  end of struct file_node  ---------- */
 
 class File_equ{
@@ -71,7 +72,7 @@ class File_equ_str{
 };
 
 ostream& operator<<(ostream& os, const file_node& file){
-	os << "file_uid = " << file.file_uid << " file_name = "<<file.file_name<<" callback = "<<file.callback<<endl;
+	os << "file_uid = " << file.file_uid << " file_name = "<<file.file_name<<" file_des = "<<file.file_des<<" callback = "<<file.callback<<endl;
 	return os;
 }
 
@@ -101,7 +102,7 @@ struct s_command{
 	{"quit", quit},
 };
 
-int recv_file(int sockfd, char* command);
+int recv_file(int sockfd, char* command, char* file_name);
 int echo_command(int sockfd, char * command);
 void dump_file_list(void);
 #endif   /* ----- #ifndef CLIENT_H_INC  ----- */

@@ -28,21 +28,24 @@
 #include <iostream>
 #include <vector>
 #include <algorithm>
+#include <fcntl.h>
 #include <sys/types.h>
 #include <dirent.h>
 #include "client.h"
-#define MAX_BUF 1024
+#define MAX_BUFF 1024
 #define PORT 32001
 #define SERVER "127.0.0.1"
 #define MAX_FILE 200
+#define RWRWRW (S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH)
 using namespace std;
 vector<file_node> file_list;
-const string client_dir = "client_dir";
+const string client_dir = "client_dir/";
 int max_file_uid = 0;
+char dummy[MAX_NAME];
 
 int main(int argc, char* argv[]){
 	int sockfd = 0;
-	char recvBuff[MAX_BUF];
+	char recvBuff[MAX_BUFF];
 	struct sockaddr_in serv_addr;
 	memset(recvBuff, 0, sizeof(recvBuff));
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -63,7 +66,7 @@ int main(int argc, char* argv[]){
 		perror("[ERROR] connect failed");
 		return 1;
 	}
-	char input[MAX_BUF];
+	char input[MAX_BUFF];
 
 	DIR *dp;
 	struct dirent *dirp;
@@ -79,7 +82,7 @@ int main(int argc, char* argv[]){
 		}
 	}
 	dump_file_list();
-	while(fgets(input, MAX_BUF, stdin) != NULL){
+	while(fgets(input, MAX_BUFF, stdin) != NULL){
 		input[strlen(input)-1] = '\0';
 		echo_command(sockfd, input);
 	}
@@ -118,31 +121,85 @@ void dump_file_list(){
 int open_file(int sockfd, char* command){
 	char file_name[MAX_NAME];
 	memset(file_name, 0, sizeof(file_name));
-	if(sscanf(command, "open %s", file_name) == 0||strlen(file_name)==0){
+	if(sscanf(command, "%s %s", dummy, file_name) == 0||strlen(file_name)==0){
 		printf("Format error\n");
 		return FORMAT_ERR;
 	}
 	vector<file_node>::iterator iter = get_file(file_name);
 	if(iter == file_list.end()){
 		printf("No such a local file\n");
-		recv_file(sockfd, command);
+		recv_file(sockfd, command, file_name);
 	}else if(iter->get_file_des() == 0){
 		printf("No callback promise\n");
-		recv_file(sockfd, command);
+		recv_file(sockfd, command, file_name);
 	}else{
-			
+		printf("Cached files\n");	
+		string file_path = client_dir + file_name;
+		int file_fd = open(file_path.c_str(), O_RDWR|O_APPEND|O_CREAT, RWRWRW);	
+		if(file_fd == -1){
+			fprintf(stderr,"file %s open error\n", file_name);
+			return FILE_ERR;
+		}
+		iter->set_file_des(file_fd);
 	}
-
 	return 0;
 }
-int recv_file(int sockfd, char* command){
+
+int recv_file(int sockfd, char* command, char* file_name){
 	pass_server(sockfd, command);
-
-
+	string file_path = client_dir + file_name;
+	cout << file_path<<endl;
+	FILE* fp = fopen(file_path.c_str(), "w+");	
+	if(fp == NULL){
+		fprintf(stderr,"[ERROR] file %s open error\n", file_name);
+		return FILE_ERR;
+	}
+	char buffer[MAX_BUFF];
+	memset(buffer, 0, sizeof(buffer));
+	int length = 0;
+	while((length = read(sockfd, buffer, MAX_BUFF)) != 0){
+		if(length<0){
+			fprintf(stderr,"[ERROR] recv file %s error\n",file_name);
+			break;
+		}
+		int write_length = fwrite(buffer, sizeof(char), length, fp);
+		if(write_length<length){
+			fprintf(stderr,"[ERROR] file %s write error\n", file_name);
+			break;
+		}
+		memset(buffer, 0, sizeof(buffer));
+	}
+	fclose(fp);
 	return 0;
 }
+
 int read_file(int sockfd, char* command){
 	printf("Read\n");
+	dump_file_list();
+	char file_name[MAX_NAME];
+	memset(file_name, 0, sizeof(file_name));
+	if(sscanf(command,"read %s", file_name)==0||strlen(file_name)==0){
+		fprintf(stderr,"[ERROR] format error\n");
+		return FORMAT_ERR;
+	}
+	//string file_path = client_dir + file_name;
+	vector<file_node>::const_iterator iter = get_file(file_name);
+	if(iter == file_list.end()||iter->get_file_des() == -1){
+		fprintf(stderr,"File %s not cached or opened\n",file_name);
+	}
+	char buffer[MAX_BUFF];
+	memset(buffer, 0, sizeof(buffer));
+	FILE* fp = fdopen(iter->get_file_des(),"r");
+	if(fp == NULL){
+		fprintf(stderr,"[ERROR] file %s open error\n", file_name);
+		return FILE_ERR;
+	}
+	while(fgets(buffer, MAX_BUFF, fp)!=NULL){
+		if(fputs(buffer, stdout)==EOF){
+			fprintf(stderr,"[ERROR] output error\n");
+		}
+		memset(buffer, 0, sizeof(buffer));
+	}
 	return 0;
 }
 int write_file(int sockfd, char* command){
@@ -170,7 +227,7 @@ int pass_server(int sockfd, char * command){
 }
 
 int quit(int sockfd, char* command){
-	char recv_buf[MAX_BUF];
+	char recv_buf[MAX_BUFF];
 	int recv_byte = read(sockfd, recv_buf, sizeof(recv_buf ) -1);
 	recv_buf[recv_byte] = '\0';
 	if(strncmp(recv_buf, "Quit", 4) == 0){

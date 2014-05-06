@@ -19,6 +19,10 @@
 #define SERVER_H_INC
 #define COMMAND_NUM 7
 #define	MAX_NAME 30			/*  */
+#define FORMAT_ERR 1
+#define SOCKET_ERR 2
+#define FILE_ERR 3
+
 using namespace std;
 
 inline size_t min(size_t a, size_t b){
@@ -28,16 +32,16 @@ inline size_t min(size_t a, size_t b){
 class client {
 	friend ostream& operator<<(ostream &os, const client& obj);
 	friend class Client_equal;
+private:
+	int client_id;
+	int sock_fd;
 public:
 	client(int clientid, int sockfd){
 		client_id = clientid;
 		sock_fd = sockfd;
 	}
-	int get_client_id(){return client_id;}
-	int get_sock_fd(){return sock_fd;}
-private:
-	int client_id;
-	int sock_fd;
+	int get_client_id() const{return client_id;}
+	int get_sock_fd() const{return sock_fd;}
 };				/* ----------  end of struct client  ---------- */
 
 class file_node {
@@ -57,9 +61,9 @@ class file_node {
 		strncpy(file_name, name, min(MAX_NAME,strlen(name)));
 		file_des = des;
 	}
-	int get_file_des(){return file_des;}
-	int get_file_uid(){return file_uid;}
-	char* get_file_name(){return file_name;}
+	int get_file_des() const{return file_des;}
+	int get_file_uid() const{return file_uid;}
+	string get_file_name() const{return file_name;}
 };	
 
 class File_equ{
@@ -132,4 +136,6 @@ int echo_command(int client_id, char * command);
 vector<client>::const_iterator get_client(int client_id);
 void *handle(void *p);
 void dump_file_list();
+vector<file_node>::iterator get_file(int uid);
+vector<file_node>::iterator get_file(char *name);
 #endif   /* ----- #ifndef SERVER_H_INC  ----- */

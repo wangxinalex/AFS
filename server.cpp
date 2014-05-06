@@ -28,18 +28,21 @@
 #include <iostream>
 #include <sys/types.h>
 #include <dirent.h>
-#include "server.h"
 #include <algorithm>
+#include <fcntl.h>
+#include "server.h"
 #define PORT "32001"
 #define BACKLOG 10
 #define BUF_LEN 512
 #define CLIENT_QUIT -2
-#define MAX_CLIENT 20
+#define MAX_CLIENT 25
+#define	BUFF_SIZE 1024			/*  */
+#define RWRWRW (S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH)
 using namespace std;
 static int global_max_client = 0;
 vector<client> client_list;
 vector<file_node> file_list;
-const string server_dir = "server_dir";
+const string server_dir = "server_dir/";
 int max_file_uid = 0;
 
 int main(int argc, char* argv[]){
@@ -138,7 +141,46 @@ int create_file(int client_fd, char * command){
 
 int open_file(int client_fd,char * command){
 	printf("Open\n");
-	
+	vector<client>::const_iterator client_iter = get_client(client_fd);
+	char file_name[MAX_NAME];
+	memset(file_name,0,sizeof(MAX_NAME));
+	if(sscanf(command,"open %s",file_name)<=0||strlen(file_name)==0){
+		perror("[ERROR] format error");
+		return FORMAT_ERR;
+	}
+	vector<file_node>::const_iterator iter = get_file(file_name);
+	string file_path = server_dir + file_name;
+	int file_fd = -1;
+	if(iter == file_list.end()){
+		file_fd = open(file_path.c_str(), O_RDWR|O_APPEND|O_CREAT, RWRWRW);
+		if(file_fd < 0){
+			perror("[ERROR] file create error");
+			return FILE_ERR;
+		}
+		file_node new_file(max_file_uid++, file_name, file_fd);
+		new_file.promise_list.push_back(client_fd);
+		file_list.push_back(new_file);
+	}else{
+		file_fd = iter->get_file_des();	
+	}
+	FILE* fp = fdopen(file_fd, "r");
+	if(fp == NULL){
+		perror("[ERROR] file open error");
+		return FILE_ERR;
+	}
+	char buffer[BUFF_SIZE];
+	memset(buffer, 0, sizeof(buffer));
+	int file_block_length = 0;
+	while((file_block_length = fread(buffer, sizeof(char), BUFF_SIZE, fp))>0){
+		int sock_fd = client_iter->get_sock_fd();
+		if(write(sock_fd, buffer, file_block_length)<0){
+			fprintf(stderr,"Send file %s filed\n",file_name);
+			break;
+		}
+		memset(buffer, 0, sizeof(buffer));
+	}
+	fclose(fp);
+	printf("File %s transfer finished\n", file_name);
 	return 0;
 }
 int read_file(int client_fd,char * command){
@@ -179,6 +221,14 @@ int quit(int client_fd, char* command){
 	}
 	close(client_sock);
 	return CLIENT_QUIT;
+}
+
+vector<file_node>::iterator get_file(int uid){
+	return find_if(file_list.begin(), file_list.end(), File_equ(uid));	
+}
+
+vector<file_node>::iterator get_file(char * name){
+	return find_if(file_list.begin(), file_list.end(), File_equ_str(name));	
 }
 
 int echo_command(int client_id, char * command){
