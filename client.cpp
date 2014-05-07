@@ -281,6 +281,18 @@ int close_file(int sockfd, char* command){
 }
 int delete_file(int sockfd, char* command){
 	printf("Delete\n");
+	char file_name[MAX_NAME];
+	memset(file_name,0, MAX_NAME);
+	if(sscanf(command, "%s %s", dummy, file_name)!=2){
+		fprintf(stderr, "[ERROR] Format error\n");
+		return FORMAT_ERR;
+	}
+	string file_path = client_dir+file_name;
+	if(unlink(file_path.c_str())!=0){
+		fprintf(stderr, "[ERROR] Delete file %s error\n", file_name);
+		return FILE_ERR;
+	}
+	printf("Delete file %s succeeded\n", file_name);
 	return 0;
 }
 int status_file(int sockfd, char* command){
