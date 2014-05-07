@@ -40,5 +40,6 @@ const char* LOCK_SUCCESS = "Lock_Success";
 const char* GENERAL_SUCCESS = "Success";
 const char* GENERAL_FAIL = "Fail";
 const char* FILE_STATUS = "File_Status";
+const char* FILE_CONSISTENT = "File_Consistent";
 
 #endif   /* ----- #ifndef UTIL_H_INC  ----- */

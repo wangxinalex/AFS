@@ -235,7 +235,7 @@ int open_file(int client_fd,char * command){
 	if(iter == file_list.end()){
 		//not exist, create the file
 		printf("Create file %s\n", file_name);
-		file_fd = open(file_path.c_str(), O_RDWR|O_APPEND|O_CREAT, RWRWRW);
+		file_fd = open(file_path.c_str(), O_RDWR|O_CREAT, RWRWRW);
 		if(file_fd < 0){
 			perror("[ERROR] file create error");
 			return FILE_ERR;
@@ -253,7 +253,7 @@ int open_file(int client_fd,char * command){
 		printf("Fetch file %s\n", file_name);
 		file_fd = iter->get_file_des();	
 		if(file_fd<0){
-			file_fd = open(file_path.c_str(), O_RDWR|O_APPEND|O_CREAT, RWRWRW);
+			file_fd = open(file_path.c_str(), O_RDWR|O_CREAT, RWRWRW);
 			if(file_fd < 0){
 				perror("[ERROR] file create error");
 				return FILE_ERR;
@@ -315,10 +315,34 @@ int close_file(int client_fd,char * command){
 	sprintf(buffer_msg, "%s %s", FILE_STATUS, s_md5.c_str());
 	cout <<"File Status: "<< buffer_msg<<endl;
 	pass_client(client_fd, buffer_msg);
-
+	memset(buffer_msg,0,MAX_RESPONSE);
+	recv_client(client_fd, buffer_msg, MAX_RESPONSE);
+	if(strncmp(buffer_msg, TRANS_FILE_START, strlen(TRANS_FILE_START))==0){
+		for(vector<int>::iterator piter = iter->promise_list.begin();
+				piter != iter->promise_list.end();piter++)	{
+			if(*piter!=client_fd){
+				add_invalid_id(client_fd, iter);	
+			}
+		}
+	}else if(strncmp(buffer_msg, FILE_CONSISTENT, strlen(FILE_CONSISTENT))==0){
+		printf("No need to transfer\n");
+		return 0;
+	}
 	return 0;
 }
-
+int add_invalid_id(int id, vector<file_node>::iterator& fiter){
+	if(find(fiter->invalid_list.begin(), fiter->invalid_list.end(),id)==fiter->invalid_list.end()){
+		fiter->invalid_list.push_back(id);
+	}
+	return 0;
+}
+int delete_invalid_id(int id, vector<file_node>::iterator& fiter){
+	vector<int>::iterator iter;
+	if((iter = find(fiter->invalid_list.begin(), fiter->invalid_list.end(),id))!=fiter->invalid_list.end()){
+		fiter->invalid_list.erase(iter);
+	}
+	return 0;
+}
 int delete_file(int client_fd, char * command){
 	printf("Delete\n");
 	return 0;

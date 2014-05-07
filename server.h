@@ -53,6 +53,7 @@ class file_node {
 	enum lock_t lock;
 	public:
 	vector<int> promise_list;
+	vector<int> invalid_list;
 	file_node():file_uid(0), file_des(-1),lock_owner(-1), lock(no_lock){}
 	file_node(int uid, char *name, int des = -1, int owner = -1, enum lock_t loc = no_lock){
 		memset(file_name,0,sizeof(file_name));
@@ -153,4 +154,6 @@ void dump_file_list();
 vector<file_node>::iterator find_file(int uid);
 vector<file_node>::iterator find_file(char *name);
 int add_file_list(int client_fd, char* file_name, int file_fd);
+int add_invalid_id(int id, vector<file_node>::iterator& fiter);
+int delete_invalid_id(int id, vector<file_node>::iterator& fiter);
 #endif   /* ----- #ifndef SERVER_H_INC  ----- */
