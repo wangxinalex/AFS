@@ -312,6 +312,32 @@ int unset_lock(int sockfd, char* command){
 	return 0;
 }
 
+int remove_callback(int sockfd, char* command){
+	printf("RemoveCallback\n");
+	pass_server(sockfd, command);
+	char buffer[MAX_BUFF];
+	recv_server(sockfd, buffer, MAX_BUFF);
+	if(strncmp(buffer, GENERAL_FAIL, strlen(GENERAL_FAIL))==0){
+		printf("RemoveCallback failed\n");
+	}else if(strncmp(buffer, GENERAL_SUCCESS, strlen(GENERAL_SUCCESS))){
+		printf("RemoveCallback succeeded\n");
+	}
+	return 0;
+}
+
+int add_callback(int sockfd, char* command){
+	printf("AddCallback\n");
+	pass_server(sockfd, command);
+	char buffer[MAX_BUFF];
+	recv_server(sockfd, buffer, MAX_BUFF);
+	if(strncmp(buffer, GENERAL_FAIL, strlen(GENERAL_FAIL))==0){
+		printf("AddCallback failed\n");
+	}else if(strncmp(buffer, GENERAL_SUCCESS, strlen(GENERAL_SUCCESS))){
+		printf("AddCallback succeeded\n");
+	}
+	return 0;
+}
+
 int pass_server(int sockfd, char * command){
 	printf("[SEND] %s\n", command);
 	if(write(sockfd, command, strlen(command)) == -1){

@@ -18,7 +18,7 @@
 
 #ifndef  CLIENT_H_INC
 #define  CLIENT_H_INC
-#define COMMAND_NUM 11
+#define COMMAND_NUM 12
 inline size_t min(size_t a, size_t b){
 	return a<b?a:b;
 }
@@ -82,6 +82,8 @@ int delete_file(int sockfd, char* command);
 int status_file(int sockfd, char* command);
 int set_lock(int sockfd, char* command);
 int unset_lock(int sockfd, char* command);
+int remove_callback(int sockfd, char* command);
+int add_callback(int sockfd, char* command);
 int quit(int sockfd, char* command);
 
 struct s_command{
@@ -96,7 +98,8 @@ struct s_command{
 	{"delete", delete_file},
 	{"setlock", set_lock},
 	{"unsetlock", unset_lock},
-	{"removecallback", pass_server},
+	{"removecallback", remove_callback},
+	{"addcallback", add_callback},
 	{"status", status_file},
 	{"quit", quit},
 };

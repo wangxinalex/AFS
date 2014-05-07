@@ -17,7 +17,7 @@
  */
 #ifndef SERVER_H_INC
 #define SERVER_H_INC
-#define COMMAND_NUM 9
+#define COMMAND_NUM 11
 using namespace std;
 
 inline size_t min(size_t a, size_t b){
@@ -119,6 +119,8 @@ int delete_file(int client_fd, char * command);
 int status_file(int client_fd,char * command);
 int setlock_file(int client_fd,char * command);
 int unsetlock_file(int client_fd,char * command);
+int removecallback_file(int client_fd,char * command);
+int addcallback_file(int client_fd,char * command);
 int quit(int client_fd, char* command);
 
 struct s_command{
@@ -133,6 +135,8 @@ struct s_command{
 	{"status", status_file},
 	{"setlock", setlock_file},
 	{"unsetlock", unsetlock_file},
+	{"removecallback", removecallback_file},
+	{"addcallback", addcallback_file},
 	{"quit", quit},
 };
 

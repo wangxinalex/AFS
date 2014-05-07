@@ -343,6 +343,69 @@ int unsetlock_file(int client_fd, char * command){
 	pass_client(client_fd, GENERAL_SUCCESS);
 	return 0;
 }
+
+int removecallback_file(int client_fd,char * command){
+	printf("RemoveCallback\n");
+	char file_name[MAX_NAME];
+	memset(file_name,0,sizeof(file_name));
+	if(sscanf(command,"%s %s", dummy,file_name)!=2){
+		fprintf(stderr, "Format error\n");
+		pass_client(client_fd, GENERAL_FAIL);
+		return FORMAT_ERR;
+	}
+	vector<file_node>::iterator iter = get_file(file_name);
+	if(iter == file_list.end()){
+		fprintf(stderr,"[ERROR] No such file\n");
+		pass_client(client_fd, GENERAL_FAIL);
+		return FILE_ERR;
+	}
+	vector<int>::iterator piter;
+	for(piter = iter->promise_list.begin();piter!=iter->promise_list.end();piter++){
+		if(*piter == client_fd){
+			break;
+		}
+	}
+	if(piter == iter->promise_list.end()){
+		fprintf(stderr, "No promise for %d\n",client_fd);
+		pass_client(client_fd, GENERAL_FAIL);
+		return FILE_ERR;
+	}
+	iter->promise_list.erase(piter);
+	pass_client(client_fd, GENERAL_SUCCESS);
+	printf("RemoveCallback finished\n");
+	return 0;
+}
+int addcallback_file(int client_fd,char * command){
+	printf("AddCallback\n");
+	char file_name[MAX_NAME];
+	memset(file_name,0,sizeof(file_name));
+	if(sscanf(command,"%s %s", dummy,file_name)!=2){
+		fprintf(stderr, "Format error\n");
+		pass_client(client_fd, GENERAL_FAIL);
+		return FORMAT_ERR;
+	}
+	vector<file_node>::iterator iter = get_file(file_name);
+	if(iter == file_list.end()){
+		fprintf(stderr,"[ERROR] No such file\n");
+		pass_client(client_fd, GENERAL_FAIL);
+		return FILE_ERR;
+	}
+	vector<int>::iterator piter;
+	for(piter = iter->promise_list.begin();piter!=iter->promise_list.end();piter++){
+		if(*piter == client_fd){
+			break;
+		}
+	}
+	if(piter != iter->promise_list.end()){
+		fprintf(stderr, "Already promise for %d\n",client_fd);
+		pass_client(client_fd, GENERAL_FAIL);
+		return FILE_ERR;
+	}
+	iter->promise_list.push_back(client_fd);
+	pass_client(client_fd, GENERAL_SUCCESS);
+	printf("AddCallback finished\n");
+	return 0;
+}
 int status_file(int client_fd,char * command){
 	printf("Status\n");
 	return 0;
