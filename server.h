@@ -17,7 +17,7 @@
  */
 #ifndef SERVER_H_INC
 #define SERVER_H_INC
-#define COMMAND_NUM 7
+#define COMMAND_NUM 9
 using namespace std;
 
 inline size_t min(size_t a, size_t b){
@@ -89,7 +89,7 @@ class File_equ_str{
 };
 
 ostream& operator<<(ostream& os, const file_node& file){
-	os << "file_uid = " << file.file_uid << " file_name = "<<file.file_name<<" promise_list = [";
+	os << "file_uid = " << file.file_uid << " file_name = "<<file.file_name<<" lock_type = "<<file.lock<<" promise_list = [";
 	for(vector<int>::const_iterator iter = file.promise_list.begin();iter!= file.promise_list.end();iter++){
 		os<<*iter<<",";
 	}
@@ -117,6 +117,8 @@ int read_file(int client_fd, char * command);
 int close_file(int client_fd, char * command);
 int delete_file(int client_fd, char * command);
 int status_file(int client_fd,char * command);
+int setlock_file(int client_fd,char * command);
+int unsetlock_file(int client_fd,char * command);
 int quit(int client_fd, char* command);
 
 struct s_command{
@@ -129,6 +131,8 @@ struct s_command{
 	{"close", close_file},
 	{"delete", delete_file},
 	{"status", status_file},
+	{"setlock", setlock_file},
+	{"unsetlock", unsetlock_file},
 	{"quit", quit},
 };
 

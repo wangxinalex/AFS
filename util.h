@@ -33,5 +33,11 @@ using namespace std;
 const char* LOCK_MES  = "Locked";
 const char* TRANS_FILE_START = "Transmission_Start";
 const char* TRANS_FILE_START_ACK = "Transmission_Start_ACK";
+const char* SHARED_LOCK= "shared";
+const char* EXCLUSIVE_LOCK = "exclusive";
+const char* LOCK_FAIL = "Lock_Failed";
+const char* LOCK_SUCCESS = "Lock_Success";
+const char* GENERAL_SUCCESS = "Success";
+const char* GENERAL_FAIL = "Fail";
 
 #endif   /* ----- #ifndef UTIL_H_INC  ----- */

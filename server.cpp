@@ -41,7 +41,7 @@ vector<client> client_list;
 vector<file_node> file_list;
 const string server_dir = "server_dir/";
 int max_file_uid = 0;
-
+char dummy[MAX_NAME];
 int main(int argc, char* argv[]){
 	pthread_t thread;
 	int sock;
@@ -279,6 +279,67 @@ int close_file(int client_fd,char * command){
 
 int delete_file(int client_fd, char * command){
 	printf("Delete\n");
+	return 0;
+}
+
+int setlock_file(int client_fd, char * command){
+	printf("Setlock\n");
+	char lock_type[MAX_RESPONSE];
+	char file_name[MAX_NAME];
+	memset(file_name,0,sizeof(file_name));
+	memset(lock_type,0,sizeof(lock_type));
+	if(sscanf(command,"%s %s %s",dummy, file_name, lock_type)!=3){
+		fprintf(stderr, "[ERROR] Format error\n");
+		pass_client(client_fd,LOCK_FAIL);
+		return FORMAT_ERR;
+	}
+	lock_t lock;
+	if(strncasecmp(lock_type, SHARED_LOCK, strlen(SHARED_LOCK))==0){
+		lock = shared_lock;
+	}else if(strncasecmp(lock_type, EXCLUSIVE_LOCK, strlen(EXCLUSIVE_LOCK))==0){
+		lock = exclusive_lock;
+	}else{
+		fprintf(stderr,"[ERROR] lock type error\n");
+		pass_client(client_fd,LOCK_FAIL);
+		return LOCK_ERR;
+	}
+	vector<file_node>::iterator iter = get_file(file_name);
+	if(iter == file_list.end()){
+		fprintf(stderr, "No such file\n");
+		pass_client(client_fd,LOCK_FAIL);
+		return FILE_ERR;
+	}
+	if(iter->get_file_lock()!=no_lock){
+		pass_client(client_fd,LOCK_FAIL);
+		printf("Already lccked\n");
+	}else if(lock == exclusive_lock && !iter->promise_list.empty()){
+		pass_client(client_fd,LOCK_FAIL);
+		printf("Others have copy\n");
+	}else{
+		iter->set_file_lock(lock);
+		pass_client(client_fd,LOCK_SUCCESS);
+		printf("Lock Success\n");
+	}
+	dump_file_list();
+	return 0;
+}
+int unsetlock_file(int client_fd, char * command){
+	printf("Unsetlock\n");
+	char file_name[MAX_NAME];
+	memset(file_name,0,sizeof(file_name));
+	if(sscanf(command,"%s %s", dummy,file_name)!=2){
+		fprintf(stderr, "Format error\n");
+		pass_client(client_fd, GENERAL_FAIL);
+		return FORMAT_ERR;
+	}
+	vector<file_node>::iterator iter = get_file(file_name);
+	if(iter == file_list.end()){
+		fprintf(stderr,"[ERROR] No such file\n");
+		pass_client(client_fd, GENERAL_FAIL);
+		return FILE_ERR;
+	}
+	iter->set_file_lock(no_lock);
+	pass_client(client_fd, GENERAL_SUCCESS);
 	return 0;
 }
 int status_file(int client_fd,char * command){

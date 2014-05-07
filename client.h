@@ -80,6 +80,8 @@ int write_file(int sockfd, char* command);
 int close_file(int sockfd, char* command);
 int delete_file(int sockfd, char* command);
 int status_file(int sockfd, char* command);
+int set_lock(int sockfd, char* command);
+int unset_lock(int sockfd, char* command);
 int quit(int sockfd, char* command);
 
 struct s_command{
@@ -92,8 +94,8 @@ struct s_command{
 	{"write", write_file},
 	{"close", close_file},
 	{"delete", delete_file},
-	{"setlock", pass_server},
-	{"unsetlock", pass_server},
+	{"setlock", set_lock},
+	{"unsetlock", unset_lock},
 	{"removecallback", pass_server},
 	{"status", status_file},
 	{"quit", quit},
