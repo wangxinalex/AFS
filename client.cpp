@@ -33,6 +33,7 @@
 #include <dirent.h>
 #include "util.h"
 #include "client.h"
+#include "md5.h"
 
 using namespace std;
 vector<file_node> file_list;

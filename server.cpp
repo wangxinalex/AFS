@@ -33,6 +33,7 @@
 #include <sys/stat.h>
 #include "util.h"
 #include "server.h"
+#include "md5.h"
 #define PORT "32001"
 #define BACKLOG 10
 using namespace std;
