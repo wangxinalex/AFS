@@ -30,7 +30,7 @@
 #define FILE_ERR 3
 #define LOCK_ERR 4
 using namespace std;
-const char* LOCK_MES  = "Locked";
+const char* LOCK_MES  = "File_Locked";
 const char* TRANS_FILE_START = "Transmission_Start";
 const char* TRANS_FILE_START_ACK = "Transmission_Start_ACK";
 const char* SHARED_LOCK= "shared";
@@ -39,5 +39,6 @@ const char* LOCK_FAIL = "Lock_Failed";
 const char* LOCK_SUCCESS = "Lock_Success";
 const char* GENERAL_SUCCESS = "Success";
 const char* GENERAL_FAIL = "Fail";
+const char* FILE_STATUS = "File_Status";
 
 #endif   /* ----- #ifndef UTIL_H_INC  ----- */

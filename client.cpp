@@ -85,9 +85,9 @@ int main(int argc, char* argv[]){
 	}
 	dump_file_list();
 	while(fgets(input, MAX_BUFF, stdin) != NULL){
-		input[strlen(input)-1]='\0';
+		input[strlen(input)-1] = '\0';
 		echo_command(sockfd, input);
-		memset(input,0,MAX_BUFF);
+		memset(input, 0, MAX_BUFF);
 	}
 	return 0;
 }
@@ -108,11 +108,11 @@ int echo_command(int sockfd , char * command){
 	return return_value;
 }
 
-vector<file_node>::iterator get_file(int uid){
+vector<file_node>::iterator find_file(int uid){
 	return find_if(file_list.begin(), file_list.end(), File_equ(uid));	
 }
 
-vector<file_node>::iterator get_file(char * name){
+vector<file_node>::iterator find_file(char * name){
 	return find_if(file_list.begin(), file_list.end(), File_equ_str(name));	
 }
 void dump_file_list(){
@@ -128,7 +128,7 @@ int open_file(int sockfd, char* command){
 		printf("Format error\n");
 		return FORMAT_ERR;
 	}
-	vector<file_node>::iterator iter = get_file(file_name);
+	vector<file_node>::iterator iter = find_file(file_name);
 	if(iter == file_list.end()){
 		printf("No such a local file\n");
 		if(recv_file(sockfd, command, file_name)!=0){
@@ -138,7 +138,7 @@ int open_file(int sockfd, char* command){
 		int new_file_uid = __sync_fetch_and_add(&max_file_uid,1);
 		file_node new_file(new_file_uid, file_name,-1,1);
 		file_list.push_back(new_file);
-		iter = get_file(new_file_uid);
+		iter = find_file(new_file_uid);
 	}else if(iter->get_file_des() == 0){
 		printf("No callback promise\n");
 		if(recv_file(sockfd, command, file_name)!=0){
@@ -223,7 +223,7 @@ int read_file(int sockfd, char* command){
 		return FORMAT_ERR;
 	}
 	//string file_path = client_dir + file_name;
-	vector<file_node>::const_iterator iter = get_file(file_name);
+	vector<file_node>::const_iterator iter = find_file(file_name);
 	if(iter == file_list.end()||iter->get_file_des() == -1){
 		fprintf(stderr,"File %s not cached or opened\n",file_name);
 		return FILE_ERR;
@@ -256,7 +256,7 @@ int write_file(int sockfd, char* command){
 		fprintf(stderr, "[ERROR] Format error\n");
 		return FORMAT_ERR;
 	}
-	vector<file_node>::iterator iter = get_file(file_name);
+	vector<file_node>::iterator iter = find_file(file_name);
 	if(iter == file_list.end()||iter->get_file_des()==-1){
 		fprintf(stderr,"File %s not cached or opened\n",file_name);
 		return FILE_ERR;
@@ -277,6 +277,48 @@ int write_file(int sockfd, char* command){
 
 int close_file(int sockfd, char* command){
 	printf("Close\n");
+	char file_name[MAX_NAME];
+	if(sscanf(command,"%s %s", dummy, file_name)!=2){
+		fprintf(stderr, "[ERROR] Format error\n");
+		return FORMAT_ERR;
+	}
+	vector<file_node>::iterator iter = find_file(file_name);
+	if(iter == file_list.end()){
+		fprintf(stderr,"[ERROR] No such a file: %s\n", file_name);
+		return FILE_ERR;
+	}
+	if(iter->get_file_des() == -1){
+		fprintf(stderr,"[ERROR] File %s not open\n", file_name);
+		return FILE_ERR;
+	}
+	pass_server(sockfd, command);
+	char response[MAX_RESPONSE];
+	char recv_md5[MAX_RESPONSE];
+	memset(recv_md5, 0 ,MAX_RESPONSE);
+	memset(response, 0, MAX_RESPONSE);
+	recv_server(sockfd, response, MAX_RESPONSE);
+	string file_path = client_dir+file_name;
+	if(strncmp(response,GENERAL_FAIL, strlen(GENERAL_FAIL))==0){
+		fprintf(stderr, "File %s Close Error\n", file_name);
+		return FILE_ERR;
+	}else if(strncmp(response,LOCK_MES,strlen(LOCK_MES))==0){
+		fprintf(stderr, "File %s Lock Error\n", file_name);
+		return FILE_ERR;
+	}else if(strncmp(response, FILE_STATUS, strlen(FILE_STATUS))==0){
+		sscanf(response, "%s %s", dummy, recv_md5);
+		MD5 md5;
+		md5.reset();
+		ifstream is(file_path.c_str());
+		md5.update(is);
+		string s_md5 = md5.toString().substr(0,6);
+		cout << "Local MD5 = "<<s_md5<<endl;
+		if(strcmp(recv_md5,s_md5.c_str())==0){
+			printf("File %s consistent\n", file_name);
+			return 0;
+		}else{
+			printf("File %s inconsistent\n", file_name);
+		}
+	}
 	return 0;
 }
 int delete_file(int sockfd, char* command){
@@ -287,6 +329,12 @@ int delete_file(int sockfd, char* command){
 		fprintf(stderr, "[ERROR] Format error\n");
 		return FORMAT_ERR;
 	}
+	vector<file_node>::iterator iter = find_file(file_name);
+	if(iter == file_list.end()){
+		fprintf(stderr, "No such a file: %s\n",file_name);
+		return FILE_ERR;
+	}
+	file_list.erase(iter);
 	string file_path = client_dir+file_name;
 	if(unlink(file_path.c_str())!=0){
 		fprintf(stderr, "[ERROR] Delete file %s error\n", file_name);
@@ -334,6 +382,11 @@ int remove_callback(int sockfd, char* command){
 	}else if(strncmp(buffer, GENERAL_SUCCESS, strlen(GENERAL_SUCCESS))){
 		printf("RemoveCallback succeeded\n");
 	}
+	return 0;
+}
+
+int dump_file(int sockfd, char* command){
+	dump_file_list();
 	return 0;
 }
 

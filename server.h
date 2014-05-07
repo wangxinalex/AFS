@@ -49,22 +49,26 @@ class file_node {
 	int file_uid;
 	char file_name[MAX_NAME];
 	int file_des;
+	int lock_owner;
 	enum lock_t lock;
 	public:
 	vector<int> promise_list;
-	file_node():file_uid(0), file_des(-1), lock(no_lock){}
-	file_node(int uid, char *name, int des = -1, enum lock_t loc = no_lock){
+	file_node():file_uid(0), file_des(-1),lock_owner(-1), lock(no_lock){}
+	file_node(int uid, char *name, int des = -1, int owner = -1, enum lock_t loc = no_lock){
 		memset(file_name,0,sizeof(file_name));
 		file_uid = uid;
 		strncpy(file_name, name, min(MAX_NAME,strlen(name)));
 		file_des = des;
+		lock_owner = owner;
 		lock = loc;
 	}
 	int get_file_des() const{return file_des;}
 	int get_file_uid() const{return file_uid;}
+	int get_lock_owner() const{return lock_owner;}
 	string get_file_name() const{return file_name;}
 	lock_t get_file_lock() const{return lock;}
 	void set_file_des(int val){file_des = val;}
+	void set_lock_owner(int owner){lock_owner = owner;}
 	void set_file_lock(enum lock_t loc){lock = loc;}
 };	
 
@@ -89,7 +93,7 @@ class File_equ_str{
 };
 
 ostream& operator<<(ostream& os, const file_node& file){
-	os << "file_uid = " << file.file_uid << " file_name = "<<file.file_name<<" lock_type = "<<file.lock<<" promise_list = [";
+	os << "file_uid = " << file.file_uid << " file_name = "<<file.file_name<<" lock_owner = "<<file.lock_owner<<" lock_type = "<<file.lock<<" promise_list = [";
 	for(vector<int>::const_iterator iter = file.promise_list.begin();iter!= file.promise_list.end();iter++){
 		os<<*iter<<",";
 	}
@@ -146,6 +150,7 @@ int echo_command(int client_id, char * command);
 vector<client>::const_iterator get_client(int client_id);
 void *handle(void *p);
 void dump_file_list();
-vector<file_node>::iterator get_file(int uid);
-vector<file_node>::iterator get_file(char *name);
+vector<file_node>::iterator find_file(int uid);
+vector<file_node>::iterator find_file(char *name);
+int add_file_list(int client_fd, char* file_name, int file_fd);
 #endif   /* ----- #ifndef SERVER_H_INC  ----- */

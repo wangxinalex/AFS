@@ -29,6 +29,8 @@
 #include <sys/types.h>
 #include <dirent.h>
 #include <algorithm>
+#include <string>
+#include <sstream>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include "util.h"
@@ -227,7 +229,7 @@ int open_file(int client_fd,char * command){
 		perror("[ERROR] format error");
 		return FORMAT_ERR;
 	}
-	vector<file_node>::iterator iter = get_file(file_name);
+	vector<file_node>::iterator iter = find_file(file_name);
 	string file_path = server_dir + file_name;
 	int file_fd = -1;
 	if(iter == file_list.end()){
@@ -238,9 +240,7 @@ int open_file(int client_fd,char * command){
 			perror("[ERROR] file create error");
 			return FILE_ERR;
 		}
-		file_node new_file(max_file_uid++, file_name, file_fd);
-		new_file.promise_list.push_back(client_fd);
-		file_list.push_back(new_file);
+		add_file_list(client_fd, file_name, file_fd);
 	}else if(iter->get_file_lock() == exclusive_lock){
 		//exclusive lock
 		if(pass_client(client_fd, LOCK_MES)!=0){
@@ -268,6 +268,13 @@ int open_file(int client_fd,char * command){
 	printf("Open file finished\n");
 	return 0;
 }
+int add_file_list(int client_fd, char* file_name, int file_fd){
+	int file_uid = __sync_fetch_and_add(&max_file_uid,1);
+	file_node new_file(file_uid, file_name, file_fd);
+	new_file.promise_list.push_back(client_fd);
+	file_list.push_back(new_file);
+	return 0;
+}
 int read_file(int client_fd,char * command){
 	printf("Read\n");
 	return 0;
@@ -275,6 +282,40 @@ int read_file(int client_fd,char * command){
 
 int close_file(int client_fd,char * command){
 	printf("Close\n");
+	char file_name[MAX_NAME];
+	memset(file_name,0,MAX_NAME);
+	if(sscanf(command, "%s %s", dummy, file_name)!=2){
+		pass_client(client_fd, GENERAL_FAIL);
+		fprintf(stderr, "[ERROR] Format error\n");
+		return FORMAT_ERR;
+	}
+	string file_path = server_dir+file_name;
+	vector<file_node>::iterator iter = find_file(file_name);
+	if(iter == file_list.end()){
+		printf("File %s not present\n", file_name);
+		int file_fd = open(file_path.c_str(), O_RDWR|O_APPEND|O_CREAT, RWRWRW);
+		add_file_list(client_fd, file_name, file_fd);
+	}else if(iter->get_file_des()==-1){
+		int file_fd = open(file_path.c_str(), O_RDWR|O_APPEND|O_CREAT, RWRWRW);
+		iter->set_file_des(file_fd);
+	}
+	iter = find_file(file_name);
+	if(iter->get_file_lock() != no_lock){
+		pass_client(client_fd, LOCK_MES);	
+		fprintf(stderr, "[ERROR] File %s has been locked\n", file_name);
+		return FORMAT_ERR;
+	}
+	MD5 md5;
+	md5.reset();
+	ifstream is(file_path.c_str());
+	md5.update(is);
+	string s_md5 = md5.toString().substr(0,6);
+	char buffer_msg[MAX_RESPONSE];
+	memset(buffer_msg, 0, MAX_RESPONSE);
+	sprintf(buffer_msg, "%s %s", FILE_STATUS, s_md5.c_str());
+	cout <<"File Status: "<< buffer_msg<<endl;
+	pass_client(client_fd, buffer_msg);
+
 	return 0;
 }
 
@@ -304,7 +345,7 @@ int setlock_file(int client_fd, char * command){
 		pass_client(client_fd,LOCK_FAIL);
 		return LOCK_ERR;
 	}
-	vector<file_node>::iterator iter = get_file(file_name);
+	vector<file_node>::iterator iter = find_file(file_name);
 	if(iter == file_list.end()){
 		fprintf(stderr, "No such file\n");
 		pass_client(client_fd,LOCK_FAIL);
@@ -318,6 +359,7 @@ int setlock_file(int client_fd, char * command){
 		printf("Others have copy\n");
 	}else{
 		iter->set_file_lock(lock);
+		iter->set_lock_owner(client_fd);
 		pass_client(client_fd,LOCK_SUCCESS);
 		printf("Lock Success\n");
 	}
@@ -333,11 +375,16 @@ int unsetlock_file(int client_fd, char * command){
 		pass_client(client_fd, GENERAL_FAIL);
 		return FORMAT_ERR;
 	}
-	vector<file_node>::iterator iter = get_file(file_name);
+	vector<file_node>::iterator iter = find_file(file_name);
 	if(iter == file_list.end()){
 		fprintf(stderr,"[ERROR] No such file\n");
 		pass_client(client_fd, GENERAL_FAIL);
 		return FILE_ERR;
+	}
+	if(iter->get_lock_owner()!=client_fd){
+		fprintf(stderr,"[ERROR] Locked by others\n");
+		pass_client(client_fd, GENERAL_FAIL);
+		return LOCK_ERR;
 	}
 	iter->set_file_lock(no_lock);
 	pass_client(client_fd, GENERAL_SUCCESS);
@@ -353,7 +400,7 @@ int removecallback_file(int client_fd,char * command){
 		pass_client(client_fd, GENERAL_FAIL);
 		return FORMAT_ERR;
 	}
-	vector<file_node>::iterator iter = get_file(file_name);
+	vector<file_node>::iterator iter = find_file(file_name);
 	if(iter == file_list.end()){
 		fprintf(stderr,"[ERROR] No such file\n");
 		pass_client(client_fd, GENERAL_FAIL);
@@ -384,7 +431,7 @@ int addcallback_file(int client_fd,char * command){
 		pass_client(client_fd, GENERAL_FAIL);
 		return FORMAT_ERR;
 	}
-	vector<file_node>::iterator iter = get_file(file_name);
+	vector<file_node>::iterator iter = find_file(file_name);
 	if(iter == file_list.end()){
 		fprintf(stderr,"[ERROR] No such file\n");
 		pass_client(client_fd, GENERAL_FAIL);
@@ -434,11 +481,11 @@ int quit(int client_fd, char* command){
 	return CLIENT_QUIT;
 }
 
-vector<file_node>::iterator get_file(int uid){
+vector<file_node>::iterator find_file(int uid){
 	return find_if(file_list.begin(), file_list.end(), File_equ(uid));	
 }
 
-vector<file_node>::iterator get_file(char * name){
+vector<file_node>::iterator find_file(char * name){
 	return find_if(file_list.begin(), file_list.end(), File_equ_str(name));	
 }
 
