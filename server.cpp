@@ -30,14 +30,11 @@
 #include <dirent.h>
 #include <algorithm>
 #include <fcntl.h>
+#include <sys/stat.h>
+#include "util.h"
 #include "server.h"
 #define PORT "32001"
 #define BACKLOG 10
-#define BUF_LEN 512
-#define CLIENT_QUIT -2
-#define MAX_CLIENT 25
-#define	BUFF_SIZE 1024			/*  */
-#define RWRWRW (S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH)
 using namespace std;
 static int global_max_client = 0;
 vector<client> client_list;
@@ -114,13 +111,13 @@ int main(int argc, char* argv[]){
 void *handle(void *p){
 	int newsock  = *(int*)p;
 	int new_client_id = add_client(newsock);
-	dump_list();
+	dump_client_list();
 	int recv_byte = 0;
-	char recv_buf[BUF_LEN];
+	char recv_buf[MAX_BUFF];
 	int return_value;
 	while((recv_byte = read(newsock, recv_buf, sizeof(recv_buf) - 1)) != 0){
 		recv_buf[recv_byte] = 0;
-		printf("Received buffer: %s\n", recv_buf );
+		printf("[INST] %s\n", recv_buf );
 		return_value = echo_command(new_client_id, recv_buf );
 		if(return_value == CLIENT_QUIT ){
 			break;
@@ -129,8 +126,90 @@ void *handle(void *p){
 	return NULL;
 }
 
+int pass_client(int client_fd, const char* content){
+	printf("[SEND to %d] %s\n",client_fd,content );
+	vector<client>::const_iterator client_iter = get_client(client_fd);
+	if(client_iter == client_list.end()){
+		fprintf(stderr,"[ERROR] No such a client %d\n",client_fd);
+		return FILE_ERR;
+	}
+	int sock_fd = client_iter->get_sock_fd();
+	if(write(sock_fd, content, strlen(content)) < 0){
+		fprintf(stderr,"[ERROR] write to client error: %s, sock_fd: %d\n", content,sock_fd );
+		return FILE_ERR;
+	}
+	return 0;
+}
+
+int recv_client(int client_fd, char* buffer, int size){
+	memset(buffer, 0, size);
+	vector<client>::const_iterator client_iter = get_client(client_fd);
+	if(client_iter == client_list.end()){
+		fprintf(stderr,"[ERROR] No such a client %d\n",client_fd);
+		return FILE_ERR;
+	}
+	if(read(client_iter->get_sock_fd(), buffer, size)<0){
+		fprintf(stderr, "[ERROR] read from client %d failed\n", client_fd);
+		return FILE_ERR;	
+	}
+	printf("[RECV from %d] %s\n", client_fd, buffer);
+	return 0;
+}
+
+int pass_client_file(int client_fd,int file_fd){
+	char response[MAX_RESPONSE];
+	FILE* fp = fdopen(file_fd, "r");
+	if(fp == NULL){
+		perror("[ERROR] file open error");
+		return FILE_ERR;
+	}
+	struct stat file_stat;
+	fstat(file_fd, &file_stat);
+	long int file_length = file_stat.st_size;
+	vector<client>::const_iterator client_iter = get_client(client_fd);
+	int sock_fd = client_iter->get_sock_fd();
+	char trans_msg[MAX_RESPONSE];
+	memset(trans_msg,0,sizeof(trans_msg));
+	sprintf(trans_msg, "%s %ld", TRANS_FILE_START, file_length);
+	if(pass_client(client_fd, trans_msg)!=0){
+		fprintf(stderr,"File Transmission Error\n");
+		return FILE_ERR;
+	}
+	printf("Waiting for ACK\n");
+	if(recv_client(client_fd, response, MAX_RESPONSE)!=0||strncmp(response, TRANS_FILE_START_ACK, strlen(TRANS_FILE_START_ACK)!=0)){
+		fprintf(stderr, "[ERROR] Transmission file failed\n");
+		return FILE_ERR;
+	}
+	if(file_length>0){
+		printf("File Transmission Start\n");
+		char buffer[MAX_BUFF];
+		memset(buffer, 0, sizeof(buffer));
+		int read_byte = 0;
+		long int total_byte = 0;
+		while((read_byte = fread(buffer,sizeof(char), MAX_BUFF, fp))!=0){
+			if(write(sock_fd, buffer, strlen(buffer))<0){
+				fprintf(stderr,"Send file filed\n");
+				return FILE_ERR;
+			}
+			total_byte+=read_byte;
+			if(read_byte != MAX_BUFF){
+				printf("total_read_byte = %ld\n", total_byte);
+				if(ferror(fp)){
+					fprintf(stderr,"File Read Error\n");
+				}
+				break;
+			}
+			memset(buffer, 0, sizeof(buffer));
+		}
+		printf("File Transmission Finished\n");
+	}
+	fflush(fp);
+	fclose(fp);
+	return 0;
+}
+
 int create_file(int client_fd, char * command){
-	char file_name[BUF_LEN];
+	char file_name[MAX_BUFF];
 	if(sscanf(command, "create %s", file_name) == 0){
 		perror("[ERROR] command format error");
 		return 1;
@@ -140,7 +219,6 @@ int create_file(int client_fd, char * command){
 }
 
 int open_file(int client_fd,char * command){
-	printf("Open\n");
 	vector<client>::const_iterator client_iter = get_client(client_fd);
 	char file_name[MAX_NAME];
 	memset(file_name,0,sizeof(MAX_NAME));
@@ -148,10 +226,12 @@ int open_file(int client_fd,char * command){
 		perror("[ERROR] format error");
 		return FORMAT_ERR;
 	}
-	vector<file_node>::const_iterator iter = get_file(file_name);
+	vector<file_node>::iterator iter = get_file(file_name);
 	string file_path = server_dir + file_name;
 	int file_fd = -1;
 	if(iter == file_list.end()){
+		//not exist, create the file
+		printf("Create file %s\n", file_name);
 		file_fd = open(file_path.c_str(), O_RDWR|O_APPEND|O_CREAT, RWRWRW);
 		if(file_fd < 0){
 			perror("[ERROR] file create error");
@@ -160,37 +240,43 @@ int open_file(int client_fd,char * command){
 		file_node new_file(max_file_uid++, file_name, file_fd);
 		new_file.promise_list.push_back(client_fd);
 		file_list.push_back(new_file);
+	}else if(iter->get_file_lock() == exclusive_lock){
+		//exclusive lock
+		if(pass_client(client_fd, LOCK_MES)!=0){
+			fprintf(stderr, "write to client error\n");
+			return FILE_ERR;
+		}
+		return LOCK_ERR;
 	}else{
+		//exist, fetch the file
+		printf("Fetch file %s\n", file_name);
 		file_fd = iter->get_file_des();	
+		if(file_fd<0){
+			file_fd = open(file_path.c_str(), O_RDWR|O_APPEND|O_CREAT, RWRWRW);
+			if(file_fd < 0){
+				perror("[ERROR] file create error");
+				return FILE_ERR;
+			}
+			iter->set_file_des(file_fd);
+		}
 	}
-	FILE* fp = fdopen(file_fd, "r");
-	if(fp == NULL){
-		perror("[ERROR] file open error");
+	if(pass_client_file(client_fd, file_fd)!=0){
+		fprintf(stderr,"[ERROR] file %s transmission error\n" , file_name);
 		return FILE_ERR;
 	}
-	char buffer[BUFF_SIZE];
-	memset(buffer, 0, sizeof(buffer));
-	int file_block_length = 0;
-	while((file_block_length = fread(buffer, sizeof(char), BUFF_SIZE, fp))>0){
-		int sock_fd = client_iter->get_sock_fd();
-		if(write(sock_fd, buffer, file_block_length)<0){
-			fprintf(stderr,"Send file %s filed\n",file_name);
-			break;
-		}
-		memset(buffer, 0, sizeof(buffer));
-	}
-	fclose(fp);
-	printf("File %s transfer finished\n", file_name);
+	printf("Open file finished\n");
 	return 0;
 }
 int read_file(int client_fd,char * command){
 	printf("Read\n");
 	return 0;
 }
+
 int close_file(int client_fd,char * command){
 	printf("Close\n");
 	return 0;
 }
+
 int delete_file(int client_fd, char * command){
 	printf("Delete\n");
 	return 0;
@@ -242,11 +328,11 @@ int echo_command(int client_id, char * command){
 	return return_value;
 }
 
-void dump_list(void){
+void dump_client_list(void){
 	for(vector<client>::const_iterator iter = client_list.begin(); iter != client_list.end(); iter++){
 		cout<<*iter;
 	}		
-}		/* -----  end of function dump_list  ----- */
+}		/* -----  end of function dump_client_list  ----- */
 
 vector<client>::const_iterator get_client(int client_id){
 	return find_if(client_list.begin(), client_list.end(), Client_equal(client_id));

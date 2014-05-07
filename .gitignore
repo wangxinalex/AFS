@@ -3,6 +3,6 @@ tags
 *.swo
 server
 client
-server_dir
-client_dir
+server_dir/
+client_dir/
 *.o

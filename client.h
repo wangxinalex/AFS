@@ -18,11 +18,7 @@
 
 #ifndef  CLIENT_H_INC
 #define  CLIENT_H_INC
-#define MAX_NAME 30
 #define COMMAND_NUM 11
-#define FORMAT_ERR 1
-#define SOCKET_ERR 2
-#define FILE_ERR 3
 inline size_t min(size_t a, size_t b){
 	return a<b?a:b;
 }
@@ -49,6 +45,7 @@ class file_node {
 	int get_file_uid() const{return file_uid;}
 	string get_file_name() const{return file_name;}
 	void set_file_des(int des) {file_des = des;}
+	void set_callback(int cb) {callback = cb;}
 };				/* ----------  end of struct file_node  ---------- */
 
 class File_equ{
@@ -105,4 +102,5 @@ struct s_command{
 int recv_file(int sockfd, char* command, char* file_name);
 int echo_command(int sockfd, char * command);
 void dump_file_list(void);
+int recv_server(int sockfd, char* buffer, int size);
 #endif   /* ----- #ifndef CLIENT_H_INC  ----- */

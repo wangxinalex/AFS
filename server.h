@@ -18,11 +18,6 @@
 #ifndef SERVER_H_INC
 #define SERVER_H_INC
 #define COMMAND_NUM 7
-#define	MAX_NAME 30			/*  */
-#define FORMAT_ERR 1
-#define SOCKET_ERR 2
-#define FILE_ERR 3
-
 using namespace std;
 
 inline size_t min(size_t a, size_t b){
@@ -44,6 +39,8 @@ public:
 	int get_sock_fd() const{return sock_fd;}
 };				/* ----------  end of struct client  ---------- */
 
+enum lock_t{no_lock, shared_lock, exclusive_lock};
+
 class file_node {
 	friend ostream& operator<<(ostream&, const file_node&);
 	friend class File_equ;
@@ -52,18 +49,23 @@ class file_node {
 	int file_uid;
 	char file_name[MAX_NAME];
 	int file_des;
+	enum lock_t lock;
 	public:
 	vector<int> promise_list;
-	file_node():file_uid(0), file_des(-1){}
-	file_node(int uid, char *name, int des = -1){
+	file_node():file_uid(0), file_des(-1), lock(no_lock){}
+	file_node(int uid, char *name, int des = -1, enum lock_t loc = no_lock){
 		memset(file_name,0,sizeof(file_name));
 		file_uid = uid;
 		strncpy(file_name, name, min(MAX_NAME,strlen(name)));
 		file_des = des;
+		lock = loc;
 	}
 	int get_file_des() const{return file_des;}
 	int get_file_uid() const{return file_uid;}
 	string get_file_name() const{return file_name;}
+	lock_t get_file_lock() const{return lock;}
+	void set_file_des(int val){file_des = val;}
+	void set_file_lock(enum lock_t loc){lock = loc;}
 };	
 
 class File_equ{
@@ -95,7 +97,7 @@ ostream& operator<<(ostream& os, const file_node& file){
 	return os;
 }
 ostream& operator<<(ostream& os, const client& obj){
-	os<<"client_id = "<<obj.client_id<<" sock_fd = "<<obj.client_id<<endl;
+	os<<"client_id = "<<obj.client_id<<" sock_fd = "<<obj.sock_fd<<endl;
 	return  os;
 }
 
@@ -131,7 +133,7 @@ struct s_command{
 };
 
 int add_client(int sockfd);
-void dump_list(void);
+void dump_client_list(void);
 int echo_command(int client_id, char * command);
 vector<client>::const_iterator get_client(int client_id);
 void *handle(void *p);
