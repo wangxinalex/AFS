@@ -40,11 +40,20 @@ using namespace std;
 vector<file_node> file_list;
 const string server_addr = "127.0.0.1";
 const int port = 32001;
-const string client_dir = "client_dir/";
+string client_dir;
 int max_file_uid = 0;
 char dummy[MAX_NAME];
 
 int main(int argc, char* argv[]){
+	if(argc != 2){
+		fprintf(stderr, "Usage:/client <home>\n");
+		exit(0);
+	}
+	
+	if(opendir(argv[1])==NULL){
+		mkdir(argv[1],777);
+	}
+	client_dir = strcat(argv[1],"/");
 	int sockfd = 0;
 	char recvBuff[MAX_BUFF];
 	struct sockaddr_in serv_addr;
@@ -84,7 +93,7 @@ int main(int argc, char* argv[]){
 			file_list.push_back(new_file);
 		}
 	}
-	dump_file_list();
+	//dump_file_list();
 	while(fgets(input, MAX_BUFF, stdin) != NULL){
 		input[strlen(input)-1] = '\0';
 		echo_command(sockfd, input);
@@ -132,6 +141,7 @@ int open_file(int sockfd, char* command){
 	vector<file_node>::iterator iter = find_file(file_name);
 	if(iter == file_list.end()){
 		printf("No such a local file\n");
+	pass_server(sockfd, command);
 		if(recv_file(sockfd, command, file_name)!=0){
 			fprintf(stderr, "[ERROR] File Receive failed\n");
 			return FILE_ERR;
@@ -141,6 +151,7 @@ int open_file(int sockfd, char* command){
 		file_list.push_back(new_file);
 		iter = find_file(new_file_uid);
 	}else if(iter->get_file_des() == 0){
+	pass_server(sockfd, command);
 		printf("No callback promise\n");
 		if(recv_file(sockfd, command, file_name)!=0){
 			fprintf(stderr, "[ERROR] File Receive failed\n");
@@ -156,6 +167,9 @@ int open_file(int sockfd, char* command){
 		recv_server(sockfd, response, MAX_RESPONSE);
 		if(strncmp(response, FILE_INCONSISTENT, strlen(FILE_INCONSISTENT))==0){
 			printf("File %s inconsistent\n", file_name);
+			char *s = NULL;
+			pass_server(sockfd,s=strdup(GENERAL_OK));
+			free(s);
 			if(recv_file(sockfd, command, file_name)!=0){
 				fprintf(stderr, "[ERROR] File Receive failed\n");
 				return FILE_ERR;
@@ -175,9 +189,8 @@ int open_file(int sockfd, char* command){
 }
 
 int recv_file(int sockfd, char* command, char* file_name){
-	pass_server(sockfd, command);
 	char response[MAX_RESPONSE];
-	printf("Waiting for file response\n");
+	printf("Waiting for file transmission start\n");
 	if(recv_server(sockfd, response, MAX_RESPONSE) < 0){
 		fprintf(stderr, "[ERROR] read from server error\n");
 		return FILE_ERR;
@@ -230,8 +243,7 @@ int recv_file(int sockfd, char* command, char* file_name){
 }
 
 int read_file(int sockfd, char* command){
-	printf("Read\n");
-	dump_file_list();
+	//dump_file_list();
 	char file_name[MAX_NAME];
 	memset(file_name, 0, sizeof(file_name));
 	if(sscanf(command,"read %s", file_name)==0||strlen(file_name)==0){
@@ -258,12 +270,12 @@ int read_file(int sockfd, char* command){
 		memset(buffer, 0, sizeof(buffer));
 	}
 	fflush(fp);
-	fclose(fp);
+	//fclose(fp);
+	printf("Read file %s succeeded\n", file_name);
 	return 0;
 }
 
 int write_file(int sockfd, char* command){
-	printf("Write\n");
 	char file_name[MAX_NAME];
 	char content[MAX_BUFF];
 	memset(file_name, 0, sizeof(file_name));
@@ -287,7 +299,8 @@ int write_file(int sockfd, char* command){
 		return FILE_ERR;
 	}
 	fflush(fp);
-	fclose(fp);
+	printf("File %s write finished\n", file_name);
+	//fclose(fp);
 	return 0;
 }
 
@@ -341,12 +354,14 @@ int close_file(int sockfd, char* command){
 	return 0;
 }
 int pass_server_file(int sockfd,int file_fd){
+	//dump_file_list();
 	char response[MAX_RESPONSE];
-	FILE* fp = fdopen(file_fd, "r");
+	FILE* fp = fdopen(file_fd, "r+");
 	if(fp == NULL){
-		perror("[ERROR] file open error");
+		fprintf(stderr,"[ERROR] file open error, descriptor: %d\n", file_fd);
 		return FILE_ERR;
 	}
+	rewind(fp);
 	struct stat file_stat;
 	fstat(file_fd, &file_stat);
 	long int file_length = file_stat.st_size;
@@ -368,7 +383,7 @@ int pass_server_file(int sockfd,int file_fd){
 		memset(buffer, 0, sizeof(buffer));
 		int read_byte = 0;
 		long int total_byte = 0;
-		while((read_byte = fread(buffer,sizeof(char), MAX_BUFF, fp))!=0){
+		while((read_byte = fread(buffer, sizeof(char), MAX_BUFF, fp))!=0){
 			if(write(sockfd, buffer, strlen(buffer))<0){
 				fprintf(stderr,"Send file filed\n");
 				return FILE_ERR;
@@ -383,6 +398,7 @@ int pass_server_file(int sockfd,int file_fd){
 			}
 			memset(buffer, 0, sizeof(buffer));
 		}
+		printf("Read byte = %d\n",read_byte);
 		printf("File Transmission Finished\n");
 	}
 	fflush(fp);
@@ -390,7 +406,6 @@ int pass_server_file(int sockfd,int file_fd){
 	return 0;
 }
 int delete_file(int sockfd, char* command){
-	printf("Delete\n");
 	char file_name[MAX_NAME];
 	memset(file_name,0, MAX_NAME);
 	if(sscanf(command, "%s %s", dummy, file_name)!=2){
@@ -412,11 +427,47 @@ int delete_file(int sockfd, char* command){
 	return 0;
 }
 int status_file(int sockfd, char* command){
-	printf("Status\n");
+	char file_name[MAX_NAME];
+	memset(file_name,0, MAX_NAME);
+	if(sscanf(file_name,"%s %s",dummy, file_name)!=2){
+		fprintf(stderr, "Format error\n");
+		return FORMAT_ERR;
+	}
+	vector<file_node>::iterator iter = find_file(file_name);
+	if(iter == file_list.end()){
+		fprintf(stderr, "No such file %s\n", file_name);
+		return FILE_ERR;
+	}
+	pass_server(sockfd,command);
+	char response[MAX_RESPONSE];
+	memset(response,0,MAX_RESPONSE);
+	recv_server(sockfd, response,MAX_RESPONSE);
+	if(strncmp(response,NO_SUCH_FILE,strlen(NO_SUCH_FILE))==0){
+		fprintf(stderr, "No such file %s at server\n", file_name);
+		return FILE_ERR;
+	}else{
+		cout << response<<endl;
+	}
 	return 0;
 }
 int set_lock(int sockfd, char* command){
-	printf("Setlock\n");
+	char lock_type[MAX_RESPONSE];
+	char file_name[MAX_NAME];
+	memset(file_name,0,sizeof(file_name));
+	memset(lock_type,0,sizeof(lock_type));
+	if(sscanf(command,"%s %s %s",dummy, file_name, lock_type)!=3){
+		fprintf(stderr, "[ERROR] Format error\n");
+		return FORMAT_ERR;
+	}
+	if(strcmp(lock_type,SHARED_LOCK)!=0&&strcmp(lock_type,EXCLUSIVE_LOCK)!=0){
+		fprintf(stderr, "[ERROR] No such lock\n");
+		return LOCK_ERR;
+	}
+	vector<file_node>::iterator iter = find_file(file_name);
+	if(iter == file_list.end()){
+		fprintf(stderr, "No such file\n");
+		return FILE_ERR;
+	}
 	pass_server(sockfd, command);
 	char buffer[MAX_BUFF];
 	recv_server(sockfd, buffer, MAX_BUFF);
@@ -428,7 +479,6 @@ int set_lock(int sockfd, char* command){
 	return 0;
 }
 int unset_lock(int sockfd, char* command){
-	printf("Unsetlock\n");
 	pass_server(sockfd, command);
 	char buffer[MAX_BUFF];
 	recv_server(sockfd, buffer, MAX_BUFF);
@@ -441,7 +491,6 @@ int unset_lock(int sockfd, char* command){
 }
 
 int remove_callback(int sockfd, char* command){
-	printf("RemoveCallback\n");
 	pass_server(sockfd, command);
 	char buffer[MAX_BUFF];
 	recv_server(sockfd, buffer, MAX_BUFF);

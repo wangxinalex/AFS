@@ -93,7 +93,6 @@ int main(int argc, char* argv[]){
 			file_list.push_back(new_file);
 		}
 	}
-	dump_file_list();
 
 	while(1){
 		size_t size = sizeof(struct sockaddr_in);
@@ -222,7 +221,6 @@ int create_file(int client_fd, char * command){
 }
 
 int open_file(int client_fd,char * command){
-	dump_file_list();
 	printf("Open\n");
 	vector<client>::const_iterator client_iter = get_client(client_fd);
 	char file_name[MAX_NAME];
@@ -269,17 +267,28 @@ int open_file(int client_fd,char * command){
 		}
 	}
 
-	if(!(exist(iter->promise_list, client_fd)&&exist(iter->invalid_list,client_fd))&&client_local){
+	if(!(iter->exist_promise_id(client_fd)&&iter->exist_invalid_id(client_fd))&&client_local){
 		printf("No need to transfer\n");
 		pass_client(client_fd, NO_TRANSMISSION);
 		return 0;
 	}
 
 	printf("File %s need transmission\n", file_name);
+	pass_client(client_fd, FILE_INCONSISTENT);
+	char response[MAX_RESPONSE];
+	memset(response,0,MAX_RESPONSE);
+	recv_client(client_fd, response,MAX_RESPONSE);
+	if(strncmp(response,GENERAL_OK, strlen(GENERAL_OK))!=0){
+		fprintf(stderr, "File Transmission Failed. response: %s\n", response);
+		return FILE_ERR;
+	}
+
 	if(pass_client_file(client_fd, file_fd)!=0){
 		fprintf(stderr,"[ERROR] file %s transmission error\n" , file_name);
 		return FILE_ERR;
 	}
+	iter->delete_invalid_id(client_fd);
+	iter->add_promise_id(client_fd);
 	printf("Open file finished\n");
 	return 0;
 }
@@ -293,10 +302,6 @@ int add_file_list(int client_fd, char* file_name, int file_fd){
 int read_file(int client_fd,char * command){
 	printf("Read\n");
 	return 0;
-}
-
-template<class T> int exist(vector<T>& vec, T val){
-	return find(vec.begin(),vec.end(),val )!=vec.end();
 }
 
 int close_file(int client_fd,char * command){
@@ -344,10 +349,12 @@ int close_file(int client_fd,char * command){
 		recv_client_file(client_fd, file_name, file_length);
 		for(vector<int>::iterator piter = iter->promise_list.begin();
 				piter != iter->promise_list.end();piter++)	{
-			if(*piter!=client_fd){
-				add_invalid_id(client_fd, iter);	
+			if(*piter != client_fd){
+				iter->add_invalid_id(*piter);			
 			}
 		}
+		iter->delete_invalid_id(client_fd);
+		iter->add_promise_id(client_fd);
 	}else if(strncmp(buffer_msg, FILE_CONSISTENT, strlen(FILE_CONSISTENT))==0){
 		printf("No need to transfer\n");
 		return 0;
@@ -366,6 +373,7 @@ int recv_client_file(int client_id,char* file_name,long file_length){
 		fprintf(stderr,"[ERROR] file %s open error\n", file_name);
 		return FILE_ERR;
 	}
+	cout << file_name<<" length = "<<file_length<<" sock_fd = "<<sockfd<<endl;
 	if(file_length>0){
 		char buffer[MAX_BUFF];
 		memset(buffer, 0, sizeof(buffer));
@@ -392,19 +400,7 @@ int recv_client_file(int client_id,char* file_name,long file_length){
 	fclose(fp);
 	return 0;
 }
-int add_invalid_id(int id, vector<file_node>::iterator& fiter){
-	if(find(fiter->invalid_list.begin(), fiter->invalid_list.end(),id)==fiter->invalid_list.end()){
-		fiter->invalid_list.push_back(id);
-	}
-	return 0;
-}
-int delete_invalid_id(int id, vector<file_node>::iterator& fiter){
-	vector<int>::iterator iter;
-	if((iter = find(fiter->invalid_list.begin(), fiter->invalid_list.end(),id))!=fiter->invalid_list.end()){
-		fiter->invalid_list.erase(iter);
-	}
-	return 0;
-}
+
 int delete_file(int client_fd, char * command){
 	printf("Delete\n");
 	return 0;
@@ -449,7 +445,6 @@ int setlock_file(int client_fd, char * command){
 		pass_client(client_fd,LOCK_SUCCESS);
 		printf("Lock Success\n");
 	}
-	dump_file_list();
 	return 0;
 }
 int unsetlock_file(int client_fd, char * command){
@@ -508,6 +503,7 @@ int removecallback_file(int client_fd,char * command){
 	printf("RemoveCallback finished\n");
 	return 0;
 }
+
 int addcallback_file(int client_fd,char * command){
 	printf("AddCallback\n");
 	char file_name[MAX_NAME];
@@ -539,8 +535,23 @@ int addcallback_file(int client_fd,char * command){
 	printf("AddCallback finished\n");
 	return 0;
 }
+
 int status_file(int client_fd,char * command){
 	printf("Status\n");
+	char file_name[MAX_NAME];
+	memset(file_name,0, MAX_NAME);
+	if(sscanf(file_name,"%s %s",dummy, file_name)!=2){
+		fprintf(stderr, "Format error\n");
+		return FORMAT_ERR;
+	}
+	vector<file_node>::iterator iter = find_file(file_name);
+	if(iter == file_list.end()){
+		pass_client(client_fd, (NO_SUCH_FILE));
+		fprintf(stderr, "No such file %s\n", file_name);
+		return FILE_ERR;
+	}
+	string rss = iter->to_string();
+	pass_client(client_fd, rss.c_str());
 	return 0;
 }
 
@@ -583,6 +594,7 @@ int echo_command(int client_id, char * command){
 			return_value = command_list[i].func(client_id, command);
 		}
 	}
+	dump_file_list();
 	return return_value;
 }
 
@@ -600,6 +612,9 @@ int add_client(int sock_fd){
 	int client_fd = __sync_fetch_and_add(&global_max_client, 1);
 	client new_client(client_fd, sock_fd);
 	client_list.push_back(new_client);
+	for(vector<file_node>::iterator iter = file_list.begin();iter!=file_list.end();iter++){
+		iter->add_promise_id(client_fd);
+	}
 	return client_fd;
 }
 

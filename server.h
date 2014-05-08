@@ -71,7 +71,61 @@ class file_node {
 	void set_file_des(int val){file_des = val;}
 	void set_lock_owner(int owner){lock_owner = owner;}
 	void set_file_lock(enum lock_t loc){lock = loc;}
+	int add_invalid_id(int id);
+	int delete_invalid_id(int id);
+	int add_promise_id(int id);
+	int delete_promise_id(int id);
+	int exist_promise_id(int id);
+	int exist_invalid_id(int id);
+	string to_string();
 };	
+string file_node::to_string(){
+	ostringstream oss;
+	oss << "file_uid = " << file_uid << " file_name = "<<file_name<<" lock_owner = "<<lock_owner<<" lock_type = "<<lock<<" promise_list = [";
+	for(vector<int>::const_iterator iter = promise_list.begin();iter!= promise_list.end();iter++){
+		oss<<*iter<<",";
+	}
+	oss<<"] invalid_list = [";
+	for(vector<int>::const_iterator iter = invalid_list.begin();iter!= invalid_list.end();iter++){
+		oss<<*iter<<",";
+	}
+	oss<<"]"<<endl;
+	return oss.str();
+}
+int file_node::add_invalid_id(int id){
+	if(find(this->invalid_list.begin(), this->invalid_list.end(),id)==this->invalid_list.end()){
+		this->invalid_list.push_back(id);
+	}
+	return 0;
+}
+int file_node::delete_invalid_id(int id){
+	vector<int>::iterator iter;
+	if((iter = find(this->invalid_list.begin(), this->invalid_list.end(),id))!=this->invalid_list.end()){
+		this->invalid_list.erase(iter);
+	}
+	return 0;
+}
+
+int file_node::add_promise_id(int id){
+	if(find(this->promise_list.begin(), this->promise_list.end(),id)==this->promise_list.end()){
+		this->promise_list.push_back(id);
+	}
+	return 0;
+}
+int file_node::delete_promise_id(int id){
+	vector<int>::iterator iter;
+	if((iter = find(this->promise_list.begin(), this->promise_list.end(),id))!=this->promise_list.end()){
+		this->promise_list.erase(iter);
+	}
+	return 0;
+}
+
+int file_node::exist_promise_id(int id){
+	return find(this->promise_list.begin(), this->promise_list.end(),id)!=this->promise_list.end();
+}
+int file_node::exist_invalid_id(int id){
+	return find(this->invalid_list.begin(), this->invalid_list.end(),id)!=this->invalid_list.end();
+}
 
 class File_equ{
 	private:

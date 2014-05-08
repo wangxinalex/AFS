@@ -23,7 +23,7 @@
 #define	MAX_BUFF 1024			/*  */
 #define RWRWRW (S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH)
 #define MAX_FILE 200
-#define	MAX_RESPONSE 40			/*  */
+#define	MAX_RESPONSE 100			/*  */
 #define	MAX_NAME 30			/*  */
 #define FORMAT_ERR 1
 #define SOCKET_ERR 2
@@ -38,11 +38,13 @@ const char* EXCLUSIVE_LOCK = "exclusive";
 const char* LOCK_FAIL = "Lock_Failed";
 const char* LOCK_SUCCESS = "Lock_Success";
 const char* GENERAL_SUCCESS = "Success";
+const char* GENERAL_OK = "OK";
 const char* GENERAL_FAIL = "Fail";
 const char* FILE_STATUS = "File_Status";
 const char* FILE_CONSISTENT = "File_Consistent";
 const char* FILE_INCONSISTENT = "File_Inconsistent";
 const char* OPEN_LOCAL_FILE = "Open_Local_File";
 const char* NO_TRANSMISSION = "No_Transmission";
+const char* NO_SUCH_FILE = "No_Such_File";
 
 #endif   /* ----- #ifndef UTIL_H_INC  ----- */

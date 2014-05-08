@@ -7,3 +7,4 @@ server_dir/
 client_dir/
 *.o
 testmd5
+dir/
