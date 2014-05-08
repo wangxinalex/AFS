@@ -8,7 +8,7 @@
  *        Version:  1.0
  *        Created:  05/05/14 05:45:35
  *       Revision:  none
- *       Compiler:  gcc
+ *       Compiler:  g++
  *
  *         Author:  wangxinalex (), wangxinalex@gmail.com
  *   Organization:  
@@ -211,11 +211,30 @@ int pass_client_file(int client_fd,int file_fd){
 }
 
 int create_file(int client_fd, char * command){
-	char file_name[MAX_BUFF];
+	char file_name[MAX_NAME];
+	memset(file_name,0,MAX_NAME);
 	if(sscanf(command, "create %s", file_name) == 0){
 		perror("[ERROR] command format error");
+		pass_client(client_fd,GENERAL_FAIL);
+		return FORMAT_ERR;
+	}
+	if(find_file(file_name)!=file_list.end()){
+		printf("File %s exists\n", file_name);
+		pass_client(client_fd,GENERAL_SUCCESS);
 		return 1;
 	}
+	string file_path = server_dir + file_name;
+	int file_fd = open(file_path.c_str(), O_RDWR|O_APPEND|O_CREAT, RWRWRW);	
+	if(file_fd == -1){
+		fprintf(stderr,"file %s open error\n", file_name);
+		pass_client(client_fd,GENERAL_FAIL);
+		return FILE_ERR;
+	}
+	close(file_fd);
+	int file_uid = __sync_fetch_and_add(&max_file_uid,1);
+	file_node new_node(file_uid, file_name);
+	file_list.push_back(new_node);
+	pass_client(client_fd,GENERAL_SUCCESS);
 	printf("Create %d %s\n", client_fd, file_name);
 	return 0;
 }
@@ -295,12 +314,8 @@ int open_file(int client_fd,char * command){
 int add_file_list(int client_fd, char* file_name, int file_fd){
 	int file_uid = __sync_fetch_and_add(&max_file_uid,1);
 	file_node new_file(file_uid, file_name, file_fd);
-	new_file.promise_list.push_back(client_fd);
+	new_file.add_promise_id(client_fd);
 	file_list.push_back(new_file);
-	return 0;
-}
-int read_file(int client_fd,char * command){
-	printf("Read\n");
 	return 0;
 }
 
@@ -347,12 +362,14 @@ int close_file(int client_fd,char * command){
 			return FILE_ERR;
 		}
 		recv_client_file(client_fd, file_name, file_length);
+		iter->promise_rdlock();
 		for(vector<int>::iterator piter = iter->promise_list.begin();
 				piter != iter->promise_list.end();piter++)	{
 			if(*piter != client_fd){
 				iter->add_invalid_id(*piter);			
 			}
 		}
+		iter->promise_unlock();
 		iter->delete_invalid_id(client_fd);
 		iter->add_promise_id(client_fd);
 	}else if(strncmp(buffer_msg, FILE_CONSISTENT, strlen(FILE_CONSISTENT))==0){
@@ -401,10 +418,6 @@ int recv_client_file(int client_id,char* file_name,long file_length){
 	return 0;
 }
 
-int delete_file(int client_fd, char * command){
-	printf("Delete\n");
-	return 0;
-}
 
 int setlock_file(int client_fd, char * command){
 	printf("Setlock\n");
@@ -433,7 +446,8 @@ int setlock_file(int client_fd, char * command){
 		pass_client(client_fd,LOCK_FAIL);
 		return FILE_ERR;
 	}
-	if(iter->get_file_lock()!=no_lock){
+	iter->promise_rdlock();
+	if(iter->get_file_lock() != no_lock){
 		pass_client(client_fd,LOCK_FAIL);
 		printf("Already lccked\n");
 	}else if(lock == exclusive_lock && !iter->promise_list.empty()){
@@ -445,8 +459,10 @@ int setlock_file(int client_fd, char * command){
 		pass_client(client_fd,LOCK_SUCCESS);
 		printf("Lock Success\n");
 	}
+	iter->promise_unlock();
 	return 0;
 }
+
 int unsetlock_file(int client_fd, char * command){
 	printf("Unsetlock\n");
 	char file_name[MAX_NAME];
@@ -487,18 +503,7 @@ int removecallback_file(int client_fd,char * command){
 		pass_client(client_fd, GENERAL_FAIL);
 		return FILE_ERR;
 	}
-	vector<int>::iterator piter;
-	for(piter = iter->promise_list.begin();piter!=iter->promise_list.end();piter++){
-		if(*piter == client_fd){
-			break;
-		}
-	}
-	if(piter == iter->promise_list.end()){
-		fprintf(stderr, "No promise for %d\n",client_fd);
-		pass_client(client_fd, GENERAL_FAIL);
-		return FILE_ERR;
-	}
-	iter->promise_list.erase(piter);
+	iter->delete_promise_id(client_fd);
 	pass_client(client_fd, GENERAL_SUCCESS);
 	printf("RemoveCallback finished\n");
 	return 0;
@@ -519,18 +524,7 @@ int addcallback_file(int client_fd,char * command){
 		pass_client(client_fd, GENERAL_FAIL);
 		return FILE_ERR;
 	}
-	vector<int>::iterator piter;
-	for(piter = iter->promise_list.begin();piter!=iter->promise_list.end();piter++){
-		if(*piter == client_fd){
-			break;
-		}
-	}
-	if(piter != iter->promise_list.end()){
-		fprintf(stderr, "Already promise for %d\n",client_fd);
-		pass_client(client_fd, GENERAL_FAIL);
-		return FILE_ERR;
-	}
-	iter->promise_list.push_back(client_fd);
+	iter->add_promise_id(client_fd);
 	pass_client(client_fd, GENERAL_SUCCESS);
 	printf("AddCallback finished\n");
 	return 0;
@@ -539,14 +533,15 @@ int addcallback_file(int client_fd,char * command){
 int status_file(int client_fd,char * command){
 	printf("Status\n");
 	char file_name[MAX_NAME];
-	memset(file_name,0, MAX_NAME);
+	memset(command,0, MAX_NAME);
 	if(sscanf(file_name,"%s %s",dummy, file_name)!=2){
 		fprintf(stderr, "Format error\n");
+		pass_client(client_fd, NO_SUCH_FILE);
 		return FORMAT_ERR;
 	}
 	vector<file_node>::iterator iter = find_file(file_name);
 	if(iter == file_list.end()){
-		pass_client(client_fd, (NO_SUCH_FILE));
+		pass_client(client_fd, NO_SUCH_FILE);
 		fprintf(stderr, "No such file %s\n", file_name);
 		return FILE_ERR;
 	}

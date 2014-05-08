@@ -8,7 +8,7 @@
  *        Version:  1.0
  *        Created:  05/06/14 20:02:20
  *       Revision:  none
- *       Compiler:  gcc
+ *       Compiler:  g++
  *
  *         Author:  wangxinalex (), wangxinalex@gmail.com
  *   Organization:  
@@ -29,7 +29,6 @@
 #define SOCKET_ERR 2
 #define FILE_ERR 3
 #define LOCK_ERR 4
-using namespace std;
 const char* LOCK_MES  = "File_Locked";
 const char* TRANS_FILE_START = "Transmission_Start";
 const char* TRANS_FILE_START_ACK = "Transmission_Start_ACK";
@@ -46,5 +45,4 @@ const char* FILE_INCONSISTENT = "File_Inconsistent";
 const char* OPEN_LOCAL_FILE = "Open_Local_File";
 const char* NO_TRANSMISSION = "No_Transmission";
 const char* NO_SUCH_FILE = "No_Such_File";
-
 #endif   /* ----- #ifndef UTIL_H_INC  ----- */

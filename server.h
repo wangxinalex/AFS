@@ -8,7 +8,7 @@
  *        Version:  1.0
  *        Created:  05/05/14 19:01:39
  *       Revision:  none
- *       Compiler:  gcc
+ *       Compiler:  g++
  *
  *         Author:  wangxinalex (), wangxinalex@gmail.com
  *   Organization:  
@@ -17,7 +17,7 @@
  */
 #ifndef SERVER_H_INC
 #define SERVER_H_INC
-#define COMMAND_NUM 11
+#define COMMAND_NUM 9
 using namespace std;
 
 inline size_t min(size_t a, size_t b){
@@ -51,6 +51,9 @@ class file_node {
 	int file_des;
 	int lock_owner;
 	enum lock_t lock;
+	pthread_rwlock_t promise_lock;
+	pthread_rwlock_t invalid_lock;
+
 	public:
 	vector<int> promise_list;
 	vector<int> invalid_list;
@@ -62,7 +65,17 @@ class file_node {
 		file_des = des;
 		lock_owner = owner;
 		lock = loc;
+		pthread_rwlock_init(&promise_lock,NULL);
+		pthread_rwlock_init(&invalid_lock,NULL);
 	}
+	~file_node(){
+		pthread_rwlock_destroy(&promise_lock);
+		pthread_rwlock_destroy(&invalid_lock);
+	}
+	void promise_rdlock(){pthread_rwlock_rdlock(&promise_lock);}
+	void invalid_rdlock(){pthread_rwlock_rdlock(&invalid_lock);}
+	void promise_unlock(){pthread_rwlock_unlock(&promise_lock);}
+	void invalid_unlock(){pthread_rwlock_unlock(&invalid_lock);}
 	int get_file_des() const{return file_des;}
 	int get_file_uid() const{return file_uid;}
 	int get_lock_owner() const{return lock_owner;}
@@ -93,38 +106,52 @@ string file_node::to_string(){
 	return oss.str();
 }
 int file_node::add_invalid_id(int id){
+	pthread_rwlock_wrlock(&invalid_lock);
 	if(find(this->invalid_list.begin(), this->invalid_list.end(),id)==this->invalid_list.end()){
 		this->invalid_list.push_back(id);
 	}
+	pthread_rwlock_unlock(&invalid_lock);
 	return 0;
 }
 int file_node::delete_invalid_id(int id){
+	pthread_rwlock_wrlock(&invalid_lock);
 	vector<int>::iterator iter;
 	if((iter = find(this->invalid_list.begin(), this->invalid_list.end(),id))!=this->invalid_list.end()){
 		this->invalid_list.erase(iter);
 	}
+	pthread_rwlock_unlock(&invalid_lock);
 	return 0;
 }
 
 int file_node::add_promise_id(int id){
+	pthread_rwlock_wrlock(&promise_lock);
 	if(find(this->promise_list.begin(), this->promise_list.end(),id)==this->promise_list.end()){
 		this->promise_list.push_back(id);
 	}
+	pthread_rwlock_unlock(&promise_lock);
 	return 0;
 }
 int file_node::delete_promise_id(int id){
+	pthread_rwlock_wrlock(&promise_lock);
 	vector<int>::iterator iter;
 	if((iter = find(this->promise_list.begin(), this->promise_list.end(),id))!=this->promise_list.end()){
 		this->promise_list.erase(iter);
 	}
+	pthread_rwlock_unlock(&promise_lock);
 	return 0;
 }
 
 int file_node::exist_promise_id(int id){
-	return find(this->promise_list.begin(), this->promise_list.end(),id)!=this->promise_list.end();
+	promise_rdlock();
+	int exist = find(this->promise_list.begin(), this->promise_list.end(),id)!=this->promise_list.end();
+	promise_unlock();
+	return exist;
 }
 int file_node::exist_invalid_id(int id){
-	return find(this->invalid_list.begin(), this->invalid_list.end(),id)!=this->invalid_list.end();
+	invalid_rdlock();
+	int exist = find(this->invalid_list.begin(), this->invalid_list.end(),id)!=this->invalid_list.end();
+	invalid_unlock();
+	return exist;
 }
 
 class File_equ{
@@ -176,9 +203,7 @@ class Client_equal{
 
 int create_file(int client_fd, char * command);
 int open_file(int client_fd, char * command);
-int read_file(int client_fd, char * command);
 int close_file(int client_fd, char * command);
-int delete_file(int client_fd, char * command);
 int status_file(int client_fd,char * command);
 int setlock_file(int client_fd,char * command);
 int unsetlock_file(int client_fd,char * command);
@@ -192,9 +217,7 @@ struct s_command{
 }command_list[] = {
 	{"create", create_file},
 	{"open", open_file},
-	{"read", read_file},
 	{"close", close_file},
-	{"delete", delete_file},
 	{"status", status_file},
 	{"setlock", setlock_file},
 	{"unsetlock", unsetlock_file},

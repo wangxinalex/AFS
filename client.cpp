@@ -8,7 +8,7 @@
  *        Version:  1.0
  *        Created:  05/05/14 07:52:32
  *       Revision:  none
- *       Compiler:  gcc
+ *       Compiler:  g++
  *
  *         Author:  wangxinalex (), wangxinalex@gmail.com
  *   Organization:  
@@ -115,6 +115,7 @@ int echo_command(int sockfd , char * command){
 	if(i == COMMAND_NUM){
 		printf("Unknown command\n");
 	}
+	dump_file_list();
 	return return_value;
 }
 
@@ -125,6 +126,7 @@ vector<file_node>::iterator find_file(int uid){
 vector<file_node>::iterator find_file(char * name){
 	return find_if(file_list.begin(), file_list.end(), File_equ_str(name));	
 }
+
 void dump_file_list(){
 	for(vector<file_node>::const_iterator iter = file_list.begin(); iter != file_list.end(); iter++){
 		cout << *iter;
@@ -187,7 +189,37 @@ int open_file(int sockfd, char* command){
 	iter->set_file_des(file_fd);
 	return 0;
 }
-
+int create_file(int sockfd, char* command){
+	char file_name[MAX_NAME];
+	if(sscanf(command,"%s %s",dummy, file_name)!=2){
+		fprintf(stderr, "[ERROR] Format error\n");
+		return FORMAT_ERR;
+	}
+	if(find_file(file_name)!=file_list.end()){
+		printf("File %s exists\n", file_name);
+		return 1;
+	}
+	string file_path = client_dir + file_name;
+	int file_fd = open(file_path.c_str(), O_RDWR|O_APPEND|O_CREAT, RWRWRW);	
+	if(file_fd == -1){
+		fprintf(stderr,"file %s open error\n", file_name);
+		return FILE_ERR;
+	}
+	close(file_fd);
+	int file_uid = __sync_fetch_and_add(&max_file_uid,1);
+	file_node new_node(file_uid, file_name);
+	file_list.push_back(new_node);
+	pass_server(sockfd, command);
+	char response[MAX_RESPONSE];
+	memset(response,0,MAX_RESPONSE);
+	recv_server(sockfd,response,MAX_RESPONSE);
+	if(strncmp(response,GENERAL_SUCCESS,strlen(GENERAL_SUCCESS))==0){
+		printf("Create file %s succeeded\n",file_name);
+	}else{
+		printf("Create file %s failed\n",file_name);
+	}
+	return 0;
+}
 int recv_file(int sockfd, char* command, char* file_name){
 	char response[MAX_RESPONSE];
 	printf("Waiting for file transmission start\n");
@@ -423,13 +455,18 @@ int delete_file(int sockfd, char* command){
 		fprintf(stderr, "[ERROR] Delete file %s error\n", file_name);
 		return FILE_ERR;
 	}
+	char newcommnad[MAX_RESPONSE];
+	memset(newcommnad,0,MAX_RESPONSE);
+	sprintf(newcommnad, "removecallback %s", file_name);
+	remove_callback(sockfd, newcommnad);
 	printf("Delete file %s succeeded\n", file_name);
 	return 0;
 }
+
 int status_file(int sockfd, char* command){
 	char file_name[MAX_NAME];
 	memset(file_name,0, MAX_NAME);
-	if(sscanf(file_name,"%s %s",dummy, file_name)!=2){
+	if(sscanf(command,"%s %s",dummy, file_name)!=2){
 		fprintf(stderr, "Format error\n");
 		return FORMAT_ERR;
 	}
@@ -446,7 +483,7 @@ int status_file(int sockfd, char* command){
 		fprintf(stderr, "No such file %s at server\n", file_name);
 		return FILE_ERR;
 	}else{
-		cout << response<<endl;
+		cout << response << endl;
 	}
 	return 0;
 }

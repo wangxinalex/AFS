@@ -8,7 +8,7 @@
  *        Version:  1.0
  *        Created:  05/06/14 00:25:28
  *       Revision:  none
- *       Compiler:  gcc
+ *       Compiler:  g++
  *
  *         Author:  wangxinalex (), wangxinalex@gmail.com
  *   Organization:  
@@ -18,11 +18,11 @@
 
 #ifndef  CLIENT_H_INC
 #define  CLIENT_H_INC
-#define COMMAND_NUM 13
+#define COMMAND_NUM 14
+using namespace std;
 inline size_t min(size_t a, size_t b){
 	return a<b?a:b;
 }
-using namespace std;
 class file_node {
 	friend ostream& operator<<(ostream&, const file_node&);
 	friend class File_equ;
@@ -74,6 +74,7 @@ ostream& operator<<(ostream& os, const file_node& file){
 }
 
 int pass_server(int sockfd, char* command);
+int create_file(int sockfd, char* command);
 int open_file(int sockfd, char* command);
 int read_file(int sockfd, char* command);
 int write_file(int sockfd, char* command);
@@ -91,7 +92,7 @@ struct s_command{
 	string name;
 	int (*func)(int sockfd, char *command);
 }command_list[] = {
-	{"create", pass_server},
+	{"create", create_file},
 	{"open", open_file},
 	{"read", read_file},
 	{"write", write_file},
