@@ -110,4 +110,5 @@ int recv_file(int sockfd, char* command, char* file_name);
 int echo_command(int sockfd, char * command);
 void dump_file_list(void);
 int recv_server(int sockfd, char* buffer, int size);
+int pass_server_file(int sockfd_fd,int file_fd);
 #endif   /* ----- #ifndef CLIENT_H_INC  ----- */

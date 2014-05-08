@@ -31,6 +31,7 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <dirent.h>
+#include <sys/stat.h>
 #include "util.h"
 #include "client.h"
 #include "md5.h"
@@ -334,8 +335,58 @@ int close_file(int sockfd, char* command){
 			return 0;
 		}else{
 			printf("File %s inconsistent\n", file_name);
+			pass_server_file(sockfd, iter->get_file_des());
 		}
 	}
+	return 0;
+}
+int pass_server_file(int sockfd,int file_fd){
+	char response[MAX_RESPONSE];
+	FILE* fp = fdopen(file_fd, "r");
+	if(fp == NULL){
+		perror("[ERROR] file open error");
+		return FILE_ERR;
+	}
+	struct stat file_stat;
+	fstat(file_fd, &file_stat);
+	long int file_length = file_stat.st_size;
+	char trans_msg[MAX_RESPONSE];
+	memset(trans_msg,0,sizeof(trans_msg));
+	sprintf(trans_msg, "%s %ld", TRANS_FILE_START, file_length);
+	if(pass_server(sockfd, trans_msg)!=0){
+		fprintf(stderr,"File Transmission Error\n");
+		return FILE_ERR;
+	}
+	printf("Waiting for ACK\n");
+	if(recv_server(sockfd, response, MAX_RESPONSE)!=0||strncmp(response, TRANS_FILE_START_ACK, strlen(TRANS_FILE_START_ACK)!=0)){
+		fprintf(stderr, "[ERROR] Transmission file failed\n");
+		return FILE_ERR;
+	}
+	if(file_length>0){
+		printf("File Transmission Start\n");
+		char buffer[MAX_BUFF];
+		memset(buffer, 0, sizeof(buffer));
+		int read_byte = 0;
+		long int total_byte = 0;
+		while((read_byte = fread(buffer,sizeof(char), MAX_BUFF, fp))!=0){
+			if(write(sockfd, buffer, strlen(buffer))<0){
+				fprintf(stderr,"Send file filed\n");
+				return FILE_ERR;
+			}
+			total_byte+=read_byte;
+			if(read_byte != MAX_BUFF){
+				printf("total_read_byte = %ld\n", total_byte);
+				if(ferror(fp)){
+					fprintf(stderr,"File Read Error\n");
+				}
+				break;
+			}
+			memset(buffer, 0, sizeof(buffer));
+		}
+		printf("File Transmission Finished\n");
+	}
+	fflush(fp);
+	fclose(fp);
 	return 0;
 }
 int delete_file(int sockfd, char* command){

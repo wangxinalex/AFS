@@ -337,6 +337,11 @@ int close_file(int client_fd,char * command){
 	memset(buffer_msg,0,MAX_RESPONSE);
 	recv_client(client_fd, buffer_msg, MAX_RESPONSE);
 	if(strncmp(buffer_msg, TRANS_FILE_START, strlen(TRANS_FILE_START))==0){
+		long int file_length = 0;
+		if(sscanf(buffer_msg,"%s %ld", dummy, &file_length)!=2){
+			return FILE_ERR;
+		}
+		recv_client_file(client_fd, file_name, file_length);
 		for(vector<int>::iterator piter = iter->promise_list.begin();
 				piter != iter->promise_list.end();piter++)	{
 			if(*piter!=client_fd){
@@ -347,6 +352,44 @@ int close_file(int client_fd,char * command){
 		printf("No need to transfer\n");
 		return 0;
 	}
+	return 0;
+}
+
+int recv_client_file(int client_id,char* file_name,long file_length){
+	char* s = NULL;
+	pass_client(client_id, s = strdup(TRANS_FILE_START_ACK));
+	int sockfd = get_client(client_id)->get_sock_fd();
+	free(s);
+	string file_path = server_dir + file_name;
+	FILE* fp = fopen(file_path.c_str(), "w+");	
+	if(fp == NULL){
+		fprintf(stderr,"[ERROR] file %s open error\n", file_name);
+		return FILE_ERR;
+	}
+	if(file_length>0){
+		char buffer[MAX_BUFF];
+		memset(buffer, 0, sizeof(buffer));
+		int length = 0;
+		long total_read_byte = 0;
+		while((length = read(sockfd, buffer, MAX_BUFF)) != 0){
+			total_read_byte += length;
+			printf("[RECV] buffer = %s\n", buffer);
+			if(length<0){
+				fprintf(stderr,"[ERROR] recv file %s error\n",file_name);
+				break;
+			}
+			if(fwrite(buffer, sizeof(char), strlen(buffer), fp)!=strlen(buffer)){
+				fprintf(stderr, "[ERROR ]File Write Error\n");
+			}
+			memset(buffer,0, sizeof(buffer));
+			if(total_read_byte >= file_length){
+				break;
+			}
+		}
+	}
+	printf("File %s received\n", file_name);
+	fflush(fp);
+	fclose(fp);
 	return 0;
 }
 int add_invalid_id(int id, vector<file_node>::iterator& fiter){

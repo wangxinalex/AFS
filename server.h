@@ -161,4 +161,5 @@ int add_file_list(int client_fd, char* file_name, int file_fd);
 int add_invalid_id(int id, vector<file_node>::iterator& fiter);
 int delete_invalid_id(int id, vector<file_node>::iterator& fiter);
 template<class T> int exist(vector<T>& vec, T val);
+int recv_client_file(int client_id, char* file_name, long file_length);
 #endif   /* ----- #ifndef SERVER_H_INC  ----- */
