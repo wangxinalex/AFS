@@ -98,6 +98,10 @@ ostream& operator<<(ostream& os, const file_node& file){
 	for(vector<int>::const_iterator iter = file.promise_list.begin();iter!= file.promise_list.end();iter++){
 		os<<*iter<<",";
 	}
+	os<<"] invalid_list = [";
+	for(vector<int>::const_iterator iter = file.invalid_list.begin();iter!= file.invalid_list.end();iter++){
+		os<<*iter<<",";
+	}
 	os<<"]"<<endl;
 	return os;
 }
@@ -156,4 +160,5 @@ vector<file_node>::iterator find_file(char *name);
 int add_file_list(int client_fd, char* file_name, int file_fd);
 int add_invalid_id(int id, vector<file_node>::iterator& fiter);
 int delete_invalid_id(int id, vector<file_node>::iterator& fiter);
+template<class T> int exist(vector<T>& vec, T val);
 #endif   /* ----- #ifndef SERVER_H_INC  ----- */

@@ -222,13 +222,19 @@ int create_file(int client_fd, char * command){
 }
 
 int open_file(int client_fd,char * command){
+	dump_file_list();
+	printf("Open\n");
 	vector<client>::const_iterator client_iter = get_client(client_fd);
 	char file_name[MAX_NAME];
 	memset(file_name,0,sizeof(MAX_NAME));
-	if(sscanf(command,"open %s",file_name)<=0||strlen(file_name)==0){
+	int client_local = 0;
+
+	if(sscanf(command,"%s %s %d",dummy ,file_name, &client_local)<2||strlen(file_name)==0){
+		pass_client(client_fd, NO_TRANSMISSION);
 		perror("[ERROR] format error");
 		return FORMAT_ERR;
 	}
+
 	vector<file_node>::iterator iter = find_file(file_name);
 	string file_path = server_dir + file_name;
 	int file_fd = -1;
@@ -237,6 +243,7 @@ int open_file(int client_fd,char * command){
 		printf("Create file %s\n", file_name);
 		file_fd = open(file_path.c_str(), O_RDWR|O_CREAT, RWRWRW);
 		if(file_fd < 0){
+			pass_client(client_fd, NO_TRANSMISSION);
 			perror("[ERROR] file create error");
 			return FILE_ERR;
 		}
@@ -261,6 +268,14 @@ int open_file(int client_fd,char * command){
 			iter->set_file_des(file_fd);
 		}
 	}
+
+	if(!(exist(iter->promise_list, client_fd)&&exist(iter->invalid_list,client_fd))&&client_local){
+		printf("No need to transfer\n");
+		pass_client(client_fd, NO_TRANSMISSION);
+		return 0;
+	}
+
+	printf("File %s need transmission\n", file_name);
 	if(pass_client_file(client_fd, file_fd)!=0){
 		fprintf(stderr,"[ERROR] file %s transmission error\n" , file_name);
 		return FILE_ERR;
@@ -278,6 +293,10 @@ int add_file_list(int client_fd, char* file_name, int file_fd){
 int read_file(int client_fd,char * command){
 	printf("Read\n");
 	return 0;
+}
+
+template<class T> int exist(vector<T>& vec, T val){
+	return find(vec.begin(),vec.end(),val )!=vec.end();
 }
 
 int close_file(int client_fd,char * command){

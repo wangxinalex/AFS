@@ -147,6 +147,21 @@ int open_file(int sockfd, char* command){
 		}
 	}else{
 		printf("Cached files\n");	
+		char response[MAX_RESPONSE];
+		memset(response,0, MAX_RESPONSE);
+		sprintf(response, "%s %s %d", "open", file_name, 1);
+		pass_server(sockfd, response);
+		memset(response, 0, MAX_RESPONSE);
+		recv_server(sockfd, response, MAX_RESPONSE);
+		if(strncmp(response, FILE_INCONSISTENT, strlen(FILE_INCONSISTENT))==0){
+			printf("File %s inconsistent\n", file_name);
+			if(recv_file(sockfd, command, file_name)!=0){
+				fprintf(stderr, "[ERROR] File Receive failed\n");
+				return FILE_ERR;
+			}
+		}else{
+			printf("Open file %s locally\n", file_name);
+		}
 	}
 	string file_path = client_dir + file_name;
 	int file_fd = open(file_path.c_str(), O_RDWR|O_APPEND|O_CREAT, RWRWRW);	
@@ -276,7 +291,6 @@ int write_file(int sockfd, char* command){
 }
 
 int close_file(int sockfd, char* command){
-	printf("Close\n");
 	char file_name[MAX_NAME];
 	if(sscanf(command,"%s %s", dummy, file_name)!=2){
 		fprintf(stderr, "[ERROR] Format error\n");
@@ -314,6 +328,9 @@ int close_file(int sockfd, char* command){
 		cout << "Local MD5 = "<<s_md5<<endl;
 		if(strcmp(recv_md5,s_md5.c_str())==0){
 			printf("File %s consistent\n", file_name);
+			char * file_response = strdup(FILE_CONSISTENT);
+			pass_server(sockfd, file_response);
+			free(file_response);
 			return 0;
 		}else{
 			printf("File %s inconsistent\n", file_name);

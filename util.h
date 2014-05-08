@@ -41,5 +41,8 @@ const char* GENERAL_SUCCESS = "Success";
 const char* GENERAL_FAIL = "Fail";
 const char* FILE_STATUS = "File_Status";
 const char* FILE_CONSISTENT = "File_Consistent";
+const char* FILE_INCONSISTENT = "File_Inconsistent";
+const char* OPEN_LOCAL_FILE = "Open_Local_File";
+const char* NO_TRANSMISSION = "No_Transmission";
 
 #endif   /* ----- #ifndef UTIL_H_INC  ----- */
