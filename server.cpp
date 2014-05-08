@@ -36,6 +36,7 @@
 #include "util.h"
 #include "server.h"
 #include "md5.h"
+#include "encrypt.h"
 #define PORT "32001"
 #define BACKLOG 10
 using namespace std;
@@ -43,8 +44,10 @@ static int global_max_client = 0;
 vector<client> client_list;
 vector<file_node> file_list;
 const string server_dir = "server_dir/";
+const string server_log = "server_log";
 int max_file_uid = 0;
 char dummy[MAX_NAME];
+ofstream log_os;
 int main(int argc, char* argv[]){
 	pthread_t thread;
 	int sock;
@@ -93,6 +96,7 @@ int main(int argc, char* argv[]){
 			file_list.push_back(new_file);
 		}
 	}
+	log_os.open(server_log.c_str(), ofstream::app);
 
 	while(1){
 		size_t size = sizeof(struct sockaddr_in);
@@ -117,27 +121,39 @@ void *handle(void *p){
 	int recv_byte = 0;
 	char recv_buf[MAX_BUFF];
 	int return_value;
+	char *s=NULL;
 	while((recv_byte = read(newsock, recv_buf, sizeof(recv_buf) - 1)) != 0){
 		recv_buf[recv_byte] = 0;
-		printf("[INST] %s\n", recv_buf );
-		return_value = echo_command(new_client_id, recv_buf );
+		const char* plain = decrypt(recv_buf, ENCRYPT_KEY).c_str();
+		char recv_inst[MAX_RESPONSE];
+		sprintf(recv_inst,"[INST from %d] %s\n", new_client_id,plain);
+		fputs(recv_inst, stdout);
+		log_os<<recv_inst<<flush;
+		return_value = echo_command(new_client_id,s=strdup( plain));
 		if(return_value == CLIENT_QUIT ){
 			break;
 		}
 	}
+	free(s);
 	return NULL;
 }
 
 int pass_client(int client_fd, const char* content){
-	printf("[SEND to %d] %s\n",client_fd,content );
+	char s_content[MAX_RESPONSE];
+	memset(s_content,0,MAX_RESPONSE);
+	strncpy(s_content, content, MAX_RESPONSE - 20);
+	char response[MAX_RESPONSE];
+	sprintf(response, "[SEND to %d] %s\n",client_fd,s_content );
+	fputs( response, stdout);
+	log_os << response<<flush;
 	vector<client>::const_iterator client_iter = get_client(client_fd);
 	if(client_iter == client_list.end()){
 		fprintf(stderr,"[ERROR] No such a client %d\n",client_fd);
 		return FILE_ERR;
 	}
 	int sock_fd = client_iter->get_sock_fd();
-	if(write(sock_fd, content, strlen(content)) < 0){
-		fprintf(stderr,"[ERROR] write to client error: %s, sock_fd: %d\n", content,sock_fd );
+	if(write(sock_fd, s_content, strlen(s_content)) < 0){
+		fprintf(stderr,"[ERROR] write to client error: %s, sock_fd: %d\n", s_content,sock_fd );
 		return FILE_ERR;
 	}
 	return 0;
@@ -154,10 +170,22 @@ int recv_client(int client_fd, char* buffer, int size){
 		fprintf(stderr, "[ERROR] read from client %d failed\n", client_fd);
 		return FILE_ERR;	
 	}
-	printf("[RECV from %d] %s\n", client_fd, buffer);
+	const char* plain = decrypt(buffer, ENCRYPT_KEY).c_str();
+	char response[MAX_RESPONSE];
+	sprintf(response,"[RECV from %d] %s\n", client_fd, plain);
+	fputs(response, stdout);
+	log_os << response<<flush;
 	return 0;
 }
 
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  pass_client_file
+ *  Description:  server ->TRANS_FILE_START -> client
+ *  			  client -> TRANS_FILE_START_ACK ->client
+ *  			  server -->file -->client
+ * =====================================================================================
+ */
 int pass_client_file(int client_fd,int file_fd){
 	char response[MAX_RESPONSE];
 	FILE* fp = fdopen(file_fd, "r");
@@ -258,34 +286,27 @@ int open_file(int client_fd,char * command){
 	if(iter == file_list.end()){
 		//not exist, create the file
 		printf("Create file %s\n", file_name);
+		add_file_list(client_fd, file_name, -1);
+	}
+	if(iter->get_file_des()==-1){
 		file_fd = open(file_path.c_str(), O_RDWR|O_CREAT, RWRWRW);
 		if(file_fd < 0){
-			pass_client(client_fd, NO_TRANSMISSION);
+			pass_client(client_fd, GENERAL_FAIL);
 			perror("[ERROR] file create error");
 			return FILE_ERR;
 		}
-		add_file_list(client_fd, file_name, file_fd);
-	}else if(iter->get_file_lock() == exclusive_lock){
+		iter->set_file_des(file_fd);
+	}	
+	if(iter->get_file_lock() == exclusive_lock){
 		//exclusive lock
-		if(pass_client(client_fd, LOCK_MES)!=0){
-			fprintf(stderr, "write to client error\n");
-			return FILE_ERR;
-		}
+		pass_client(client_fd, LOCK_MES);
 		return LOCK_ERR;
-	}else{
-		//exist, fetch the file
-		printf("Fetch file %s\n", file_name);
-		file_fd = iter->get_file_des();	
-		if(file_fd<0){
-			file_fd = open(file_path.c_str(), O_RDWR|O_CREAT, RWRWRW);
-			if(file_fd < 0){
-				perror("[ERROR] file create error");
-				return FILE_ERR;
-			}
-			iter->set_file_des(file_fd);
-		}
 	}
+	//exist, fetch the file
+	printf("Fetch file %s\n", file_name);
+	file_fd = iter->get_file_des();	
 
+	//if the client is not in the promise_list or file not out-of-date, no transmssion
 	if(!(iter->exist_promise_id(client_fd)&&iter->exist_invalid_id(client_fd))&&client_local){
 		printf("No need to transfer\n");
 		pass_client(client_fd, NO_TRANSMISSION);
@@ -293,7 +314,7 @@ int open_file(int client_fd,char * command){
 	}
 
 	printf("File %s need transmission\n", file_name);
-	pass_client(client_fd, FILE_INCONSISTENT);
+	pass_client(client_fd, NEED_TRANSMISSION);
 	char response[MAX_RESPONSE];
 	memset(response,0,MAX_RESPONSE);
 	recv_client(client_fd, response,MAX_RESPONSE);
@@ -311,6 +332,7 @@ int open_file(int client_fd,char * command){
 	printf("Open file finished\n");
 	return 0;
 }
+
 int add_file_list(int client_fd, char* file_name, int file_fd){
 	int file_uid = __sync_fetch_and_add(&max_file_uid,1);
 	file_node new_file(file_uid, file_name, file_fd);
@@ -343,6 +365,20 @@ int close_file(int client_fd,char * command){
 		pass_client(client_fd, LOCK_MES);	
 		fprintf(stderr, "[ERROR] File %s has been locked\n", file_name);
 		return FORMAT_ERR;
+	}
+	if(iter->exist_invalid_id(client_fd)||(!iter->exist_promise_id(client_fd))){
+		pass_client(client_fd,CLIENT_NEED_SYNC);
+		char response[MAX_RESPONSE];
+		memset(response,0,MAX_RESPONSE);
+		recv_client(client_fd, response, MAX_RESPONSE);
+		if(strncmp(response,GENERAL_OK, strlen(GENERAL_OK))==0){
+			pass_client_file(client_fd, iter->get_file_des());
+			printf("File %s transmmitted to client\n", file_name);
+			return 0;
+		}else{
+			fprintf(stderr, "[ERROR] file transmission error\n");
+			return FILE_ERR;
+		}
 	}
 	MD5 md5;
 	md5.reset();
@@ -484,6 +520,7 @@ int unsetlock_file(int client_fd, char * command){
 		return LOCK_ERR;
 	}
 	iter->set_file_lock(no_lock);
+	iter->set_lock_owner(-1);
 	pass_client(client_fd, GENERAL_SUCCESS);
 	return 0;
 }
@@ -533,8 +570,8 @@ int addcallback_file(int client_fd,char * command){
 int status_file(int client_fd,char * command){
 	printf("Status\n");
 	char file_name[MAX_NAME];
-	memset(command,0, MAX_NAME);
-	if(sscanf(file_name,"%s %s",dummy, file_name)!=2){
+	memset(file_name,0, MAX_NAME);
+	if(sscanf(command,"%s %s",dummy, file_name)!=2){
 		fprintf(stderr, "Format error\n");
 		pass_client(client_fd, NO_SUCH_FILE);
 		return FORMAT_ERR;

@@ -6,15 +6,14 @@ CLIENT = client
 SERVER_OBJ = server.o
 CLIENT_OBJ = client.o
 MD5_OBJ = md5.o
+ENCRYPT_OBJ = encrypt.o
 ALL:$(SERVER) $(CLIENT)
 
-$(SERVER):$(SERVER_OBJ) $(MD5_OBJ)	
-	$(CC) -o $(SERVER) $(SERVER_OBJ) $(MD5_OBJ) $(CFLAGS) $(LDFLAGS)
-$(CLIENT):$(CLIENT_OBJ) $(MD5_OBJ)
-	$(CC) -o $(CLIENT) $(CLIENT_OBJ) $(MD5_OBJ) $(CFLAGS) $(LDFLAGS)
+$(SERVER):server.cpp md5.cpp encrypt.cpp
+	$(CC) -o $@ server.cpp md5.cpp encrypt.cpp $(LDFLAGS) $(CFLAGS)
+$(CLIENT):client.cpp md5.cpp encrypt.cpp
+	$(CC) -o $@ client.cpp md5.cpp encrypt.cpp $(CFLAGS) $(LDFLAGS)
 
-$(SERVER_OBJ) $(CLIENT_OBJ) $(MD5_OBJ):%.o:%.cpp
-	$(CC) $(CFLAGS) -c $< -o $@
 
 .PHONY:clean
 clean:

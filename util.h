@@ -23,7 +23,7 @@
 #define	MAX_BUFF 1024			/*  */
 #define RWRWRW (S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH)
 #define MAX_FILE 200
-#define	MAX_RESPONSE 100			/*  */
+#define	MAX_RESPONSE 300			/*  */
 #define	MAX_NAME 30			/*  */
 #define FORMAT_ERR 1
 #define SOCKET_ERR 2
@@ -44,5 +44,8 @@ const char* FILE_CONSISTENT = "File_Consistent";
 const char* FILE_INCONSISTENT = "File_Inconsistent";
 const char* OPEN_LOCAL_FILE = "Open_Local_File";
 const char* NO_TRANSMISSION = "No_Transmission";
+const char* NEED_TRANSMISSION = "Need_Transmission";
 const char* NO_SUCH_FILE = "No_Such_File";
+const char* CLIENT_NEED_SYNC = "Client_Need_Sync";
+const char* SERVER_NEED_FILE = "Server_Need_Sync";
 #endif   /* ----- #ifndef UTIL_H_INC  ----- */

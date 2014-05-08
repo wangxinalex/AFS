@@ -73,7 +73,7 @@ ostream& operator<<(ostream& os, const file_node& file){
 	return os;
 }
 
-int pass_server(int sockfd, char* command);
+int pass_server(int sockfd, const char* command);
 int create_file(int sockfd, char* command);
 int open_file(int sockfd, char* command);
 int read_file(int sockfd, char* command);
@@ -107,7 +107,7 @@ struct s_command{
 	{"quit", quit},
 };
 
-int recv_file(int sockfd, char* command, char* file_name);
+int recv_file(int sockfd, char* file_name);
 int echo_command(int sockfd, char * command);
 void dump_file_list(void);
 int recv_server(int sockfd, char* buffer, int size);

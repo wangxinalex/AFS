@@ -35,6 +35,7 @@
 #include "util.h"
 #include "client.h"
 #include "md5.h"
+#include "encrypt.h"
 
 using namespace std;
 vector<file_node> file_list;
@@ -94,10 +95,12 @@ int main(int argc, char* argv[]){
 		}
 	}
 	//dump_file_list();
+	printf("[Input]:");
 	while(fgets(input, MAX_BUFF, stdin) != NULL){
 		input[strlen(input)-1] = '\0';
 		echo_command(sockfd, input);
 		memset(input, 0, MAX_BUFF);
+		printf("[Input]:");
 	}
 	return 0;
 }
@@ -115,7 +118,7 @@ int echo_command(int sockfd , char * command){
 	if(i == COMMAND_NUM){
 		printf("Unknown command\n");
 	}
-	dump_file_list();
+	//dump_file_list();
 	return return_value;
 }
 
@@ -140,55 +143,53 @@ int open_file(int sockfd, char* command){
 		printf("Format error\n");
 		return FORMAT_ERR;
 	}
+	int cached = 0;
 	vector<file_node>::iterator iter = find_file(file_name);
 	if(iter == file_list.end()){
 		printf("No such a local file\n");
-	pass_server(sockfd, command);
-		if(recv_file(sockfd, command, file_name)!=0){
-			fprintf(stderr, "[ERROR] File Receive failed\n");
-			return FILE_ERR;
-		}
 		int new_file_uid = __sync_fetch_and_add(&max_file_uid,1);
 		file_node new_file(new_file_uid, file_name,-1,1);
 		file_list.push_back(new_file);
 		iter = find_file(new_file_uid);
-	}else if(iter->get_file_des() == 0){
-	pass_server(sockfd, command);
-		printf("No callback promise\n");
-		if(recv_file(sockfd, command, file_name)!=0){
-			fprintf(stderr, "[ERROR] File Receive failed\n");
+	}else{
+		cached = 1;
+	}
+	if(iter->get_file_des() == -1){
+		printf("File %s not open\n", file_name);
+		string file_path = client_dir + file_name;
+		int file_fd = open(file_path.c_str(), O_RDWR|O_APPEND|O_CREAT, RWRWRW);	
+		if(file_fd == -1){
+			fprintf(stderr,"file %s open error\n", file_name);
 			return FILE_ERR;
 		}
-	}else{
-		printf("Cached files\n");	
-		char response[MAX_RESPONSE];
-		memset(response,0, MAX_RESPONSE);
-		sprintf(response, "%s %s %d", "open", file_name, 1);
-		pass_server(sockfd, response);
-		memset(response, 0, MAX_RESPONSE);
-		recv_server(sockfd, response, MAX_RESPONSE);
-		if(strncmp(response, FILE_INCONSISTENT, strlen(FILE_INCONSISTENT))==0){
-			printf("File %s inconsistent\n", file_name);
-			char *s = NULL;
-			pass_server(sockfd,s=strdup(GENERAL_OK));
-			free(s);
-			if(recv_file(sockfd, command, file_name)!=0){
-				fprintf(stderr, "[ERROR] File Receive failed\n");
-				return FILE_ERR;
-			}
-		}else{
-			printf("Open file %s locally\n", file_name);
+		iter->set_file_des(file_fd);
+	}
+	char s_command[MAX_RESPONSE];
+	memset(s_command,0,MAX_RESPONSE);
+	sprintf(s_command, "%s %d",command,cached);
+	pass_server(sockfd, s_command);
+	char response[MAX_RESPONSE];
+	memset(response, 0, MAX_RESPONSE);
+	recv_server(sockfd, response, MAX_RESPONSE);
+	if(strncmp(response, GENERAL_FAIL, strlen(GENERAL_FAIL))==0){
+		fprintf(stderr,"[ERROR] Server Failure\n");
+		return FILE_ERR;	
+	}else if(strncmp(response, NO_TRANSMISSION, strlen(NO_TRANSMISSION))==0){
+		printf("No need of synchronization\n");
+		return 0;	
+	}else if(strncmp(response, LOCK_MES, strlen(LOCK_MES))==0){
+		printf("File Locked\n");
+		return 0;
+	}else if(strncmp(response, NEED_TRANSMISSION, strlen(NEED_TRANSMISSION))==0){
+		pass_server(sockfd, GENERAL_OK);
+		if(recv_file(sockfd, file_name)!=0){
+			fprintf(stderr,"[ERROR] File transmssion error\n");
+			return FILE_ERR;
 		}
 	}
-	string file_path = client_dir + file_name;
-	int file_fd = open(file_path.c_str(), O_RDWR|O_APPEND|O_CREAT, RWRWRW);	
-	if(file_fd == -1){
-		fprintf(stderr,"file %s open error\n", file_name);
-		return FILE_ERR;
-	}
-	iter->set_file_des(file_fd);
 	return 0;
 }
+
 int create_file(int sockfd, char* command){
 	char file_name[MAX_NAME];
 	if(sscanf(command,"%s %s",dummy, file_name)!=2){
@@ -220,17 +221,15 @@ int create_file(int sockfd, char* command){
 	}
 	return 0;
 }
-int recv_file(int sockfd, char* command, char* file_name){
+
+int recv_file(int sockfd, char* file_name){
 	char response[MAX_RESPONSE];
 	printf("Waiting for file transmission start\n");
 	if(recv_server(sockfd, response, MAX_RESPONSE) < 0){
 		fprintf(stderr, "[ERROR] read from server error\n");
 		return FILE_ERR;
 	}
-	if(strncmp(response, LOCK_MES,strlen(LOCK_MES))==0){
-		fprintf(stderr, "File %s locked\n", file_name);
-		return LOCK_ERR;
-	}else if(strncasecmp(response, TRANS_FILE_START, strlen(TRANS_FILE_START))!=0){
+	if(strncasecmp(response, TRANS_FILE_START, strlen(TRANS_FILE_START))!=0){
 		fprintf(stderr, "File %s received error\n",file_name);
 		return FILE_ERR;
 	}
@@ -238,9 +237,7 @@ int recv_file(int sockfd, char* command, char* file_name){
 	if(sscanf(response,"%s %ld", dummy, &file_length)!=2){
 		return FILE_ERR;
 	}
-	char* s = NULL;
-	pass_server(sockfd, s = strdup(TRANS_FILE_START_ACK));
-	free(s);
+	pass_server(sockfd, (TRANS_FILE_START_ACK));
 	string file_path = client_dir + file_name;
 	FILE* fp = fopen(file_path.c_str(), "w+");	
 	if(fp == NULL){
@@ -364,6 +361,11 @@ int close_file(int sockfd, char* command){
 	}else if(strncmp(response,LOCK_MES,strlen(LOCK_MES))==0){
 		fprintf(stderr, "File %s Lock Error\n", file_name);
 		return FILE_ERR;
+	}else if(strncmp(response,CLIENT_NEED_SYNC, strlen(CLIENT_NEED_SYNC))==0){
+		pass_server(sockfd, GENERAL_OK);
+		recv_file(sockfd,file_name);
+		printf("File %s received\n", file_name);
+		return 0;
 	}else if(strncmp(response, FILE_STATUS, strlen(FILE_STATUS))==0){
 		sscanf(response, "%s %s", dummy, recv_md5);
 		MD5 md5;
@@ -374,9 +376,7 @@ int close_file(int sockfd, char* command){
 		cout << "Local MD5 = "<<s_md5<<endl;
 		if(strcmp(recv_md5,s_md5.c_str())==0){
 			printf("File %s consistent\n", file_name);
-			char * file_response = strdup(FILE_CONSISTENT);
-			pass_server(sockfd, file_response);
-			free(file_response);
+			pass_server(sockfd, FILE_CONSISTENT);
 			return 0;
 		}else{
 			printf("File %s inconsistent\n", file_name);
@@ -557,9 +557,10 @@ int add_callback(int sockfd, char* command){
 	return 0;
 }
 
-int pass_server(int sockfd, char * command){
+int pass_server(int sockfd, const char * command){
 	printf("[SEND] %s\n", command);
-	if(write(sockfd, command, strlen(command)) == -1){
+	const char* encrypted = encrypt(command, ENCRYPT_KEY).c_str();
+	if(write(sockfd, encrypted, strlen(encrypted)) == -1){
 		perror("[ERROR] write error");
 		return SOCKET_ERR;
 	}

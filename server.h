@@ -175,7 +175,7 @@ class File_equ_str{
 };
 
 ostream& operator<<(ostream& os, const file_node& file){
-	os << "file_uid = " << file.file_uid << " file_name = "<<file.file_name<<" lock_owner = "<<file.lock_owner<<" lock_type = "<<file.lock<<" promise_list = [";
+	os << "file_uid = " << file.file_uid << " file_name = "<<file.file_name<<" file_des = "<<file.file_des<<" lock_owner = "<<file.lock_owner<<" lock_type = "<<file.lock<<" promise_list = [";
 	for(vector<int>::const_iterator iter = file.promise_list.begin();iter!= file.promise_list.end();iter++){
 		os<<*iter<<",";
 	}
