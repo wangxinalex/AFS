@@ -152,7 +152,8 @@ int pass_client(int client_fd, const char* content){
 		return FILE_ERR;
 	}
 	int sock_fd = client_iter->get_sock_fd();
-	if(write(sock_fd, s_content, strlen(s_content)) < 0){
+	const char* encrypted = encrypt(s_content, ENCRYPT_KEY).c_str();
+	if(write(sock_fd, encrypted, strlen(encrypted)) < 0){
 		fprintf(stderr,"[ERROR] write to client error: %s, sock_fd: %d\n", s_content,sock_fd );
 		return FILE_ERR;
 	}
@@ -175,6 +176,8 @@ int recv_client(int client_fd, char* buffer, int size){
 	sprintf(response,"[RECV from %d] %s\n", client_fd, plain);
 	fputs(response, stdout);
 	log_os << response<<flush;
+	memset(buffer,0,size);
+	strcpy(buffer, plain);
 	return 0;
 }
 

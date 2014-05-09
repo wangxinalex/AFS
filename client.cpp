@@ -586,6 +586,9 @@ int recv_server(int sockfd, char* buffer, int size){
 		fprintf(stderr, "[ERROR] read from server failed\n");
 		return FILE_ERR;	
 	}
-	printf("[RECV] %s\n", buffer);
+	const char * plain = decrypt(buffer, ENCRYPT_KEY).c_str();
+	memset(buffer,0,size);
+	strncpy(buffer, plain,strlen(plain));
+	printf("[RECV] %s\n", plain);
 	return 0;
 }
