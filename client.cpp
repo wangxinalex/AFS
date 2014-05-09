@@ -136,6 +136,13 @@ void dump_file_list(){
 	}
 }
 
+
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  open_file
+ *  Description:  open a file. Create it if not present, then synchronize it with server. If the client is in callback promise list or out-of-date, fetch the file from the server.
+ * =====================================================================================
+ */
 int open_file(int sockfd, char* command){
 	char file_name[MAX_NAME];
 	memset(file_name, 0, sizeof(file_name));
@@ -190,6 +197,12 @@ int open_file(int sockfd, char* command){
 	return 0;
 }
 
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  create_file
+ *  Description:  create a file and synchronize with the server
+ * =====================================================================================
+ */
 int create_file(int sockfd, char* command){
 	char file_name[MAX_NAME];
 	if(sscanf(command,"%s %s",dummy, file_name)!=2){
@@ -222,6 +235,12 @@ int create_file(int sockfd, char* command){
 	return 0;
 }
 
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  recv_file
+ *  Description:  receive a file from the server
+ * =====================================================================================
+ */
 int recv_file(int sockfd, char* file_name){
 	char response[MAX_RESPONSE];
 	printf("Waiting for file transmission start\n");
@@ -271,6 +290,12 @@ int recv_file(int sockfd, char* file_name){
 	return 0;
 }
 
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  read_file
+ *  Description:  read the file locally
+ * =====================================================================================
+ */
 int read_file(int sockfd, char* command){
 	//dump_file_list();
 	char file_name[MAX_NAME];
@@ -304,6 +329,12 @@ int read_file(int sockfd, char* command){
 	return 0;
 }
 
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  write
+ *  Description:  write a file locally
+ * =====================================================================================
+ */
 int write_file(int sockfd, char* command){
 	char file_name[MAX_NAME];
 	char content[MAX_BUFF];
@@ -333,6 +364,12 @@ int write_file(int sockfd, char* command){
 	return 0;
 }
 
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  close_file
+ *  Description:  close a file locally. If the file is latest, store to the server. If out-of-date, synchronize with the server
+ * =====================================================================================
+ */
 int close_file(int sockfd, char* command){
 	char file_name[MAX_NAME];
 	if(sscanf(command,"%s %s", dummy, file_name)!=2){
@@ -385,6 +422,13 @@ int close_file(int sockfd, char* command){
 	}
 	return 0;
 }
+
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  pass_server_file
+ *  Description:  store a file to server
+ * =====================================================================================
+ */
 int pass_server_file(int sockfd,int file_fd){
 	//dump_file_list();
 	char response[MAX_RESPONSE];
@@ -393,6 +437,7 @@ int pass_server_file(int sockfd,int file_fd){
 		fprintf(stderr,"[ERROR] file open error, descriptor: %d\n", file_fd);
 		return FILE_ERR;
 	}
+	//reset the file pointer to the beginning
 	rewind(fp);
 	struct stat file_stat;
 	fstat(file_fd, &file_stat);
@@ -437,6 +482,13 @@ int pass_server_file(int sockfd,int file_fd){
 	fclose(fp);
 	return 0;
 }
+
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  delete_file
+ *  Description:  delete the local file and remove the callback promise
+ * =====================================================================================
+ */
 int delete_file(int sockfd, char* command){
 	char file_name[MAX_NAME];
 	memset(file_name,0, MAX_NAME);
@@ -463,6 +515,12 @@ int delete_file(int sockfd, char* command){
 	return 0;
 }
 
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  status_file
+ *  Description:  show the status of a file
+ * =====================================================================================
+ */
 int status_file(int sockfd, char* command){
 	char file_name[MAX_NAME];
 	memset(file_name,0, MAX_NAME);
@@ -487,6 +545,13 @@ int status_file(int sockfd, char* command){
 	}
 	return 0;
 }
+
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  set_lock
+ *  Description:  set a lock (shared or exclusive) to a file
+ * =====================================================================================
+ */
 int set_lock(int sockfd, char* command){
 	char lock_type[MAX_RESPONSE];
 	char file_name[MAX_NAME];
@@ -515,6 +580,13 @@ int set_lock(int sockfd, char* command){
 	}
 	return 0;
 }
+
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  unset_lock
+ *  Description:  release the lock
+ * =====================================================================================
+ */
 int unset_lock(int sockfd, char* command){
 	pass_server(sockfd, command);
 	char buffer[MAX_BUFF];
@@ -539,11 +611,23 @@ int remove_callback(int sockfd, char* command){
 	return 0;
 }
 
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  dump_file
+ *  Description:  print information about all files
+ * =====================================================================================
+ */
 int dump_file(int sockfd, char* command){
 	dump_file_list();
 	return 0;
 }
 
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  add_callback
+ *  Description:  add the client itself to the callback promise list
+ * =====================================================================================
+ */
 int add_callback(int sockfd, char* command){
 	printf("AddCallback\n");
 	pass_server(sockfd, command);
@@ -557,6 +641,12 @@ int add_callback(int sockfd, char* command){
 	return 0;
 }
 
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  pass_server
+ *  Description:  pass the instruction to server(encrypted)
+ * =====================================================================================
+ */
 int pass_server(int sockfd, const char * command){
 	printf("[SEND] %s\n", command);
 	const char* encrypted = encrypt(command, ENCRYPT_KEY).c_str();
@@ -567,6 +657,12 @@ int pass_server(int sockfd, const char * command){
 	return 0;
 }
 
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  quit
+ *  Description:  quit the client
+ * =====================================================================================
+ */
 int quit(int sockfd, char* command){
 	pass_server(sockfd, command);
 	char recv_buf[MAX_BUFF];
@@ -580,6 +676,12 @@ int quit(int sockfd, char* command){
 	exit(0);
 }
 
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  recv_server
+ *  Description:  receive a file from server
+ * =====================================================================================
+ */
 int recv_server(int sockfd, char* buffer, int size){
 	memset(buffer, 0, size);
 	if(read(sockfd, buffer, size)<0){

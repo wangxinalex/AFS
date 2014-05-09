@@ -138,6 +138,12 @@ void *handle(void *p){
 	return NULL;
 }
 
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  pass_client
+ *  Description:  pass an encrypted response to client 
+ * =====================================================================================
+ */
 int pass_client(int client_fd, const char* content){
 	char s_content[MAX_RESPONSE];
 	memset(s_content,0,MAX_RESPONSE);
@@ -241,6 +247,12 @@ int pass_client_file(int client_fd,int file_fd){
 	return 0;
 }
 
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  create_file
+ *  Description:  create a file at server
+ * =====================================================================================
+ */
 int create_file(int client_fd, char * command){
 	char file_name[MAX_NAME];
 	memset(file_name,0,MAX_NAME);
@@ -270,6 +282,14 @@ int create_file(int client_fd, char * command){
 	return 0;
 }
 
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  open_file
+ *  Description:  open the file. Ctrate the file if not existext. Transfer the file to client
+ *  if 1. the client is in callback promise list and holds an out-of-date version 
+ *     2. no cached version in client side
+ * =====================================================================================
+ */
 int open_file(int client_fd,char * command){
 	printf("Open\n");
 	vector<client>::const_iterator client_iter = get_client(client_fd);
@@ -300,7 +320,8 @@ int open_file(int client_fd,char * command){
 		}
 		iter->set_file_des(file_fd);
 	}	
-	if(iter->get_file_lock() == exclusive_lock){
+	//exclusively locked by others
+	if(iter->get_file_lock() == exclusive_lock && iter->get_lock_owner()!=client_fd){
 		//exclusive lock
 		pass_client(client_fd, LOCK_MES);
 		return LOCK_ERR;
@@ -344,6 +365,16 @@ int add_file_list(int client_fd, char* file_name, int file_fd){
 	return 0;
 }
 
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  close_file
+ *  Description:  close the file. 
+ *  1. If the client is not in the callback promise list or out-of-date, pass
+ *  the latest version to the client. 
+ *  2. Otherwise refresh the file at server and other clients in promise list will
+ *  know that this file is out-of-date.
+ * =====================================================================================
+ */
 int close_file(int client_fd,char * command){
 	printf("Close\n");
 	char file_name[MAX_NAME];
@@ -364,11 +395,13 @@ int close_file(int client_fd,char * command){
 		iter->set_file_des(file_fd);
 	}
 	iter = find_file(file_name);
-	if(iter->get_file_lock() != no_lock){
+	//the file is locked by others
+	if(iter->get_file_lock() != no_lock && iter->get_lock_owner()!=client_fd){
 		pass_client(client_fd, LOCK_MES);	
 		fprintf(stderr, "[ERROR] File %s has been locked\n", file_name);
 		return FORMAT_ERR;
 	}
+	//if the client not in promise_list or out of data, pass the file to the client
 	if(iter->exist_invalid_id(client_fd)||(!iter->exist_promise_id(client_fd))){
 		pass_client(client_fd,CLIENT_NEED_SYNC);
 		char response[MAX_RESPONSE];
@@ -401,6 +434,7 @@ int close_file(int client_fd,char * command){
 			return FILE_ERR;
 		}
 		recv_client_file(client_fd, file_name, file_length);
+		//other clients in promise_list will know the local version is out-of-date
 		iter->promise_rdlock();
 		for(vector<int>::iterator piter = iter->promise_list.begin();
 				piter != iter->promise_list.end();piter++)	{
@@ -418,6 +452,12 @@ int close_file(int client_fd,char * command){
 	return 0;
 }
 
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  recv_client_file
+ *  Description:  receive a file from a client
+ * =====================================================================================
+ */
 int recv_client_file(int client_id,char* file_name,long file_length){
 	char* s = NULL;
 	pass_client(client_id, s = strdup(TRANS_FILE_START_ACK));
@@ -457,7 +497,12 @@ int recv_client_file(int client_id,char* file_name,long file_length){
 	return 0;
 }
 
-
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  setlock_file
+ *  Description:  a client set a lock(shared or exclusive) to a file 
+ * =====================================================================================
+ */
 int setlock_file(int client_fd, char * command){
 	printf("Setlock\n");
 	char lock_type[MAX_RESPONSE];
@@ -502,6 +547,12 @@ int setlock_file(int client_fd, char * command){
 	return 0;
 }
 
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  unsetlock_file
+ *  Description:  release the lock of a file
+ * =====================================================================================
+ */
 int unsetlock_file(int client_fd, char * command){
 	printf("Unsetlock\n");
 	char file_name[MAX_NAME];
@@ -528,6 +579,12 @@ int unsetlock_file(int client_fd, char * command){
 	return 0;
 }
 
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  removecallback_file
+ *  Description:  remove a client from the callback promise list of a file
+ * =====================================================================================
+ */
 int removecallback_file(int client_fd,char * command){
 	printf("RemoveCallback\n");
 	char file_name[MAX_NAME];
@@ -549,6 +606,12 @@ int removecallback_file(int client_fd,char * command){
 	return 0;
 }
 
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  addcallback_file
+ *  Description:  add a client_fd to callback promise list
+ * =====================================================================================
+ */
 int addcallback_file(int client_fd,char * command){
 	printf("AddCallback\n");
 	char file_name[MAX_NAME];
@@ -570,6 +633,12 @@ int addcallback_file(int client_fd,char * command){
 	return 0;
 }
 
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  status_file
+ *  Description:  pass the status of a file to client
+ * =====================================================================================
+ */
 int status_file(int client_fd,char * command){
 	printf("Status\n");
 	char file_name[MAX_NAME];
@@ -590,6 +659,12 @@ int status_file(int client_fd,char * command){
 	return 0;
 }
 
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  quit
+ *  Description:  handle the quit of a client
+ * =====================================================================================
+ */
 int quit(int client_fd, char* command){
 	printf("Client %d Quit\n", client_fd);
 	vector<client>::iterator iter;
@@ -621,6 +696,12 @@ vector<file_node>::iterator find_file(char * name){
 	return find_if(file_list.begin(), file_list.end(), File_equ_str(name));	
 }
 
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  echo_command
+ *  Description:  dispatch the command to appropriate function
+ * =====================================================================================
+ */
 int echo_command(int client_id, char * command){
 	int return_value = 0;
 	for(int i = 0; i < COMMAND_NUM; i++){

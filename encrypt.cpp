@@ -22,6 +22,13 @@
 #include "md5.h"
 #include "encrypt.h"
 using namespace std;
+
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  encrypt
+ *  Description:  encrypt the plain text using the md5 key
+ * =====================================================================================
+ */
 string encrypt(string text, string key){
 	MD5 md5;
 	md5.reset();
@@ -32,6 +39,13 @@ string encrypt(string text, string key){
 	}
 	return text;
 }
+
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  decrypt
+ *  Description:  decrypt the encrypted text
+ * =====================================================================================
+ */
 string decrypt(string text, string key){
 	MD5 md5;
 	md5.reset();

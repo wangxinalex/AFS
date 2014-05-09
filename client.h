@@ -18,7 +18,7 @@
 
 #ifndef  CLIENT_H_INC
 #define  CLIENT_H_INC
-#define COMMAND_NUM 14
+#define COMMAND_NUM 13
 using namespace std;
 inline size_t min(size_t a, size_t b){
 	return a<b?a:b;
@@ -40,6 +40,12 @@ class file_node {
 		strncpy(file_name, name, min(MAX_NAME,strlen(name)));
 		file_des = des;
 		callback = cb;
+	}
+	~file_node(){
+		memset(file_name,0,MAX_NAME);
+		file_uid = -1;
+		file_des = -1;
+		callback = 0;
 	}
 	int get_file_des() const{return file_des;}
 	int get_file_uid() const{return file_uid;}

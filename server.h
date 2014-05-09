@@ -27,16 +27,20 @@ inline size_t min(size_t a, size_t b){
 class client {
 	friend ostream& operator<<(ostream &os, const client& obj);
 	friend class Client_equal;
-private:
+	private:
 	int client_id;
 	int sock_fd;
-public:
+	public:
 	client(int clientid, int sockfd){
 		client_id = clientid;
 		sock_fd = sockfd;
 	}
 	int get_client_id() const{return client_id;}
 	int get_sock_fd() const{return sock_fd;}
+	~client(){
+		client_id = -1;
+		sock_fd = -1;
+	}
 };				/* ----------  end of struct client  ---------- */
 
 enum lock_t{no_lock, shared_lock, exclusive_lock};
@@ -147,6 +151,7 @@ int file_node::exist_promise_id(int id){
 	promise_unlock();
 	return exist;
 }
+
 int file_node::exist_invalid_id(int id){
 	invalid_rdlock();
 	int exist = find(this->invalid_list.begin(), this->invalid_list.end(),id)!=this->invalid_list.end();
