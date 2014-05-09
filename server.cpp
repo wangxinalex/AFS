@@ -87,6 +87,10 @@ int main(int argc, char* argv[]){
 		return 1;
 	}
 
+	if(opendir(server_dir.c_str())==NULL){
+		printf("Create server directory %s\n", server_dir.c_str());
+		mkdir(server_dir.c_str(), 777);
+	}
 	DIR *dp;
 	struct dirent *dirp;
 	if((dp = opendir(server_dir.c_str()))==NULL){
@@ -642,6 +646,11 @@ int addcallback_file(int client_fd, char * command){
 		pass_client(client_fd, GENERAL_FAIL);
 		return FILE_ERR;
 	}
+	if(iter->get_file_lock()!=no_lock&&iter->get_lock_owner()!=client_fd){
+		fprintf(stderr,"[ERROR] File locked\n");
+		pass_client(client_fd, GENERAL_FAIL);
+		return LOCK_ERR;
+	}
 	iter->add_promise_id(client_fd);
 	iter->add_invalid_id(client_fd);
 	pass_client(client_fd, GENERAL_SUCCESS);
@@ -684,23 +693,14 @@ int status_file(int client_fd,char * command){
 int quit(int client_fd, char* command){
 	printf("Client %d Quit\n", client_fd);
 	vector<client>::iterator iter;
-	int client_sock = -1;
-	for (iter = client_list.begin(); iter != client_list.end(); iter++) {
-		if(iter->get_client_id() == client_fd){
-			client_sock = iter->get_sock_fd();
-			client_list.erase(iter);
-			break;
-		}
+
+	if((iter=get_client(client_fd))==client_list.end()){
+		fprintf(stderr, "No such a client\n");
+		pass_client(client_fd, GENERAL_FAIL);
+		return FILE_ERR;
 	}
-	if(client_sock == -1){
-		printf("No such a client\n");
-		return 1;
-	}
-	string message = "Quit";
-	if(write(client_sock, message.c_str(),message.size()) < 0){
-		perror("[ERROR] write error");
-	}
-	close(client_sock);
+	pass_client(client_fd, CLIENT_QUIT_STR);
+	client_list.erase(iter);
 	return CLIENT_QUIT;
 }
 
@@ -736,7 +736,7 @@ void dump_client_list(void){
 	}		
 }		/* -----  end of function dump_client_list  ----- */
 
-vector<client>::const_iterator get_client(int client_id){
+vector<client>::iterator get_client(int client_id){
 	return find_if(client_list.begin(), client_list.end(), Client_equal(client_id));
 }
 

@@ -50,4 +50,5 @@ const char* NEED_TRANSMISSION = "Need_Transmission";
 const char* NO_SUCH_FILE = "No_Such_File";
 const char* CLIENT_NEED_SYNC = "Client_Need_Sync";
 const char* SERVER_NEED_FILE = "Server_Need_Sync";
+const char* CLIENT_QUIT_STR= "Client_Quit";
 #endif   /* ----- #ifndef UTIL_H_INC  ----- */

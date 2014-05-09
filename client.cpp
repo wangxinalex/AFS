@@ -52,6 +52,7 @@ int main(int argc, char* argv[]){
 	}
 	
 	if(opendir(argv[1])==NULL){
+		printf("Create client directory %s\n", argv[1]);
 		mkdir(argv[1],777);
 	}
 	client_dir = strcat(argv[1],"/");
@@ -513,16 +514,19 @@ int delete_file(int sockfd, char* command){
 		fprintf(stderr, "No such a file: %s\n",file_name);
 		return FILE_ERR;
 	}
+	if(iter->get_callback()==1){
+		char newcommand[MAX_RESPONSE];
+		memset(newcommand,0,MAX_RESPONSE);
+		sprintf(newcommand, "removecallback %s", file_name);
+		remove_callback(sockfd, newcommand);
+	}
 	file_list.erase(iter);
 	string file_path = client_dir+file_name;
 	if(unlink(file_path.c_str())!=0){
 		fprintf(stderr, "[ERROR] Delete file %s error\n", file_name);
 		return FILE_ERR;
 	}
-	char newcommnad[MAX_RESPONSE];
-	memset(newcommnad,0,MAX_RESPONSE);
-	sprintf(newcommnad, "removecallback %s", file_name);
-	remove_callback(sockfd, newcommnad);
+
 	printf("Delete file %s succeeded\n", file_name);
 	return 0;
 }
@@ -636,7 +640,7 @@ int remove_callback(int sockfd, char* command){
 	recv_server(sockfd, buffer, MAX_BUFF);
 	if(strncmp(buffer, GENERAL_FAIL, strlen(GENERAL_FAIL))==0){
 		printf("RemoveCallback failed\n");
-	}else if(strncmp(buffer, GENERAL_SUCCESS, strlen(GENERAL_SUCCESS))){
+	}else if(strncmp(buffer, GENERAL_SUCCESS, strlen(GENERAL_SUCCESS))==0){
 		printf("RemoveCallback succeeded\n");
 		iter->set_callback(0);
 	}
@@ -682,7 +686,7 @@ int add_callback(int sockfd, char* command){
 	recv_server(sockfd, buffer, MAX_BUFF);
 	if(strncmp(buffer, GENERAL_FAIL, strlen(GENERAL_FAIL))==0){
 		printf("AddCallback failed\n");
-	}else if(strncmp(buffer, GENERAL_SUCCESS, strlen(GENERAL_SUCCESS))){
+	}else if(strncmp(buffer, GENERAL_SUCCESS, strlen(GENERAL_SUCCESS))==0){
 		printf("AddCallback succeeded\n");
 		iter->set_callback(1);
 	}
@@ -713,12 +717,13 @@ int pass_server(int sockfd, const char * command){
  */
 int quit(int sockfd, char* command){
 	pass_server(sockfd, command);
-	char recv_buf[MAX_BUFF];
-	if(recv_server(sockfd,recv_buf, MAX_BUFF)!=0){
+	char recv_buf[MAX_RESPONSE];
+	memset(recv_buf,0,MAX_RESPONSE);
+	if(recv_server(sockfd,recv_buf, MAX_RESPONSE)!=0){
 		fprintf(stderr, "Receive error\n");
 		exit(1);
 	}
-	if(strncmp(recv_buf, "Quit", 4) == 0){
+	if(strncmp(recv_buf, CLIENT_QUIT_STR, strlen(CLIENT_QUIT_STR)) == 0){
 		printf("Exited\n");
 	}
 	exit(0);

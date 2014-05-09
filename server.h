@@ -264,7 +264,7 @@ struct s_command{
 int add_client(int sockfd);
 void dump_client_list(void);
 int echo_command(int client_id, char * command);
-vector<client>::const_iterator get_client(int client_id);
+vector<client>::iterator get_client(int client_id);
 void *handle(void *p);
 void dump_file_list();
 vector<file_node>::iterator find_file(int uid);
