@@ -615,6 +615,7 @@ int removecallback_file(int client_fd,char * command){
 		return FILE_ERR;
 	}
 	iter->delete_promise_id(client_fd);
+	iter->delete_invalid_id(client_fd);
 	pass_client(client_fd, GENERAL_SUCCESS);
 	printf("RemoveCallback finished\n");
 	return 0;
@@ -626,7 +627,7 @@ int removecallback_file(int client_fd,char * command){
  *  Description:  add a client_fd to callback promise list
  * =====================================================================================
  */
-int addcallback_file(int client_fd,char * command){
+int addcallback_file(int client_fd, char * command){
 	printf("AddCallback\n");
 	char file_name[MAX_NAME];
 	memset(file_name,0,sizeof(file_name));
@@ -642,6 +643,7 @@ int addcallback_file(int client_fd,char * command){
 		return FILE_ERR;
 	}
 	iter->add_promise_id(client_fd);
+	iter->add_invalid_id(client_fd);
 	pass_client(client_fd, GENERAL_SUCCESS);
 	printf("AddCallback finished\n");
 	return 0;

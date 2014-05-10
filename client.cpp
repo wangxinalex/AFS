@@ -150,7 +150,7 @@ int open_file(int sockfd, char* command){
 		printf("Format error\n");
 		return FORMAT_ERR;
 	}
-	int cached = 0;
+	int cached = 0, not_promise = 0;
 	vector<file_node>::iterator iter = find_file(file_name);
 	if(iter == file_list.end()){
 		printf("No such a local file\n");
@@ -159,6 +159,9 @@ int open_file(int sockfd, char* command){
 		file_list.push_back(new_file);
 		iter = find_file(new_file_uid);
 	}else{
+		if(iter->get_callback()==0){
+			not_promise = 1;
+		}
 		cached = 1;
 	}
 	if(iter->get_file_des() == -1){
@@ -170,6 +173,11 @@ int open_file(int sockfd, char* command){
 			return FILE_ERR;
 		}
 		iter->set_file_des(file_fd);
+	}
+	//not in the promise list
+	if(not_promise == 1){
+		printf("Open file %s locally\n", file_name);
+		return 0;
 	}
 	char s_command[MAX_RESPONSE];
 	memset(s_command,0,MAX_RESPONSE);
@@ -383,6 +391,10 @@ int close_file(int sockfd, char* command){
 	}
 	if(iter->get_file_des() == -1){
 		fprintf(stderr,"[ERROR] File %s not open\n", file_name);
+		return FILE_ERR;
+	}
+	if(iter->get_callback()==0){
+		printf("Close file %s locally\n", file_name);
 		return FILE_ERR;
 	}
 	pass_server(sockfd, command);
@@ -604,6 +616,21 @@ int unset_lock(int sockfd, char* command){
 }
 
 int remove_callback(int sockfd, char* command){
+	char file_name[MAX_NAME];
+	memset(file_name,0,MAX_NAME);
+	if(sscanf(command,"%s %s", dummy, file_name)!=2){
+		fprintf(stderr, "[ERROR] Format Error\n");
+		return FORMAT_ERR;
+	}
+	vector<file_node>::iterator iter;
+	if((iter = find_file(file_name)) == file_list.end()){
+		fprintf(stderr, "[ERROR] No such file\n");
+		return FILE_ERR;
+	}
+	if(iter->get_callback()==0){
+		printf("Already not in the promise list\n");
+		return 0;
+	}
 	pass_server(sockfd, command);
 	char buffer[MAX_BUFF];
 	recv_server(sockfd, buffer, MAX_BUFF);
@@ -611,6 +638,7 @@ int remove_callback(int sockfd, char* command){
 		printf("RemoveCallback failed\n");
 	}else if(strncmp(buffer, GENERAL_SUCCESS, strlen(GENERAL_SUCCESS))){
 		printf("RemoveCallback succeeded\n");
+		iter->set_callback(0);
 	}
 	return 0;
 }
@@ -634,6 +662,21 @@ int dump_file(int sockfd, char* command){
  */
 int add_callback(int sockfd, char* command){
 	printf("AddCallback\n");
+	char file_name[MAX_RESPONSE];
+	memset(file_name,0,MAX_RESPONSE);
+	if(sscanf(command,"%s %s", dummy, file_name)!=2){
+		fprintf(stderr, "[ERROR] Format Error\n");
+		return FORMAT_ERR;
+	}
+	vector<file_node>::iterator iter;
+	if((iter = find_file(file_name))==file_list.end()){
+		fprintf(stderr, "[ERROR] No such file\n");
+		return FILE_ERR;
+	}
+	if(iter->get_callback() == 1){
+		printf("Already in the promise list\n");
+		return 0;
+	}
 	pass_server(sockfd, command);
 	char buffer[MAX_BUFF];
 	recv_server(sockfd, buffer, MAX_BUFF);
@@ -641,6 +684,7 @@ int add_callback(int sockfd, char* command){
 		printf("AddCallback failed\n");
 	}else if(strncmp(buffer, GENERAL_SUCCESS, strlen(GENERAL_SUCCESS))){
 		printf("AddCallback succeeded\n");
+		iter->set_callback(1);
 	}
 	return 0;
 }

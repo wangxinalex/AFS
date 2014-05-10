@@ -33,8 +33,8 @@ class file_node {
 	int file_des;
 	int callback;
 	public:
-	file_node():file_uid(0), file_des(-1), callback(0){}
-	file_node(int uid, char *name, int des = -1, int cb = 0){
+	file_node():file_uid(0), file_des(-1), callback(1){}
+	file_node(int uid, char *name, int des = -1, int cb = 1){
 		memset(file_name,0,sizeof(file_name));
 		file_uid = uid;
 		strncpy(file_name, name, min(MAX_NAME,strlen(name)));
@@ -49,6 +49,7 @@ class file_node {
 	}
 	int get_file_des() const{return file_des;}
 	int get_file_uid() const{return file_uid;}
+	int get_callback(){return callback;}
 	string get_file_name() const{return file_name;}
 	void set_file_des(int des) {file_des = des;}
 	void set_callback(int cb) {callback = cb;}

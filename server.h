@@ -100,14 +100,25 @@ class file_node {
 string file_node::to_string(){
 	ostringstream oss;
 	oss << "file_uid = " << file_uid << " file_name = "<<file_name<<" lock_owner = "<<lock_owner<<" lock_type = "<<lock<<" promise_list = [";
+	ostringstream oss_list;
 	for(vector<int>::const_iterator iter = promise_list.begin();iter!= promise_list.end();iter++){
-		oss<<*iter<<",";
+		oss_list<<*iter<<",";
 	}
-	oss<<"] invalid_list = [";
+	string s_list = oss_list.str();
+	if(s_list.size()!=0){
+		s_list = s_list.substr(0,s_list.size()-1);
+	}
+	oss<<s_list<<"] invalid_list = [";
+	oss_list.str("");
+	s_list.clear();
 	for(vector<int>::const_iterator iter = invalid_list.begin();iter!= invalid_list.end();iter++){
-		oss<<*iter<<",";
+		oss_list<<*iter<<",";
 	}
-	oss<<"]"<<endl;
+	s_list = oss_list.str();
+	if(s_list.size()!=0){
+		s_list = s_list.substr(0,s_list.size()-1);
+	}
+	oss<<s_list<<"]"<<endl;
 	return oss.str();
 }
 int file_node::add_invalid_id(int id){
@@ -188,16 +199,28 @@ class File_equ_str{
 
 ostream& operator<<(ostream& os, const file_node& file){
 	os << "file_uid = " << file.file_uid << " file_name = "<<file.file_name<<" file_des = "<<file.file_des<<" lock_owner = "<<file.lock_owner<<" lock_type = "<<file.lock<<" promise_list = [";
+	ostringstream oss;
 	for(vector<int>::const_iterator iter = file.promise_list.begin();iter!= file.promise_list.end();iter++){
-		os<<*iter<<",";
+		oss<<*iter<<",";
 	}
-	os<<"] invalid_list = [";
+	string s_list = oss.str();
+	if(s_list.size()!=0){
+		s_list = s_list.substr(0,s_list.size()-1);
+	}
+	os<<s_list<<"] invalid_list = [";
+	oss.str("");
 	for(vector<int>::const_iterator iter = file.invalid_list.begin();iter!= file.invalid_list.end();iter++){
-		os<<*iter<<",";
+		oss<<*iter<<",";
 	}
-	os<<"]"<<endl;
+	s_list.clear();
+	s_list = oss.str();
+	if(s_list.size()!=0){
+		s_list = s_list.substr(0,s_list.size()-1);
+	}
+	os<<s_list<<"]"<<endl;
 	return os;
 }
+
 ostream& operator<<(ostream& os, const client& obj){
 	os<<"client_id = "<<obj.client_id<<" sock_fd = "<<obj.sock_fd<<endl;
 	return  os;
