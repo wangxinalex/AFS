@@ -396,7 +396,7 @@ int close_file(int sockfd, char* command){
 		fprintf(stderr, "File %s Close Error\n", file_name);
 		return FILE_ERR;
 	}else if(strncmp(response,LOCK_MES,strlen(LOCK_MES))==0){
-		fprintf(stderr, "File %s Lock Error\n", file_name);
+		fprintf(stderr, "File %s is Locked\n", file_name);
 		return FILE_ERR;
 	}else if(strncmp(response,CLIENT_NEED_SYNC, strlen(CLIENT_NEED_SYNC))==0){
 		pass_server(sockfd, GENERAL_OK);
@@ -575,6 +575,10 @@ int set_lock(int sockfd, char* command){
 	recv_server(sockfd, buffer, MAX_BUFF);
 	if(strncmp(buffer, LOCK_FAIL, strlen(LOCK_FAIL))==0){
 		printf("Lock failed\n");
+	}else if(strncmp(buffer, LOCK_ALREADY, strlen(LOCK_ALREADY))==0){
+		printf("File Already Locked\n");
+	}else if(strncmp(buffer, LOCK_OTHER_COPY, strlen(LOCK_OTHER_COPY))==0){
+		printf("Others have copy\n");
 	}else if(strncmp(buffer, LOCK_SUCCESS, strlen(LOCK_SUCCESS))==0){
 		printf("Lock succeeded\n");
 	}

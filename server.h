@@ -91,6 +91,7 @@ class file_node {
 	int add_invalid_id(int id);
 	int delete_invalid_id(int id);
 	int add_promise_id(int id);
+	int only_promise_id(int id);
 	int delete_promise_id(int id);
 	int exist_promise_id(int id);
 	int exist_invalid_id(int id);
@@ -144,7 +145,13 @@ int file_node::delete_promise_id(int id){
 	pthread_rwlock_unlock(&promise_lock);
 	return 0;
 }
-
+int file_node::only_promise_id(int id){
+	promise_rdlock();
+	int only_one = this->promise_list.size()==1;
+	int exist = find(this->promise_list.begin(), this->promise_list.end(),id)!=this->promise_list.end();
+	promise_unlock();
+	return exist&&only_one;
+}
 int file_node::exist_promise_id(int id){
 	promise_rdlock();
 	int exist = find(this->promise_list.begin(), this->promise_list.end(),id)!=this->promise_list.end();

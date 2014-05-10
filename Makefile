@@ -12,7 +12,7 @@ CLIENT_FILES = client.cpp md5.cpp encrypt.cpp
 ALL:$(SERVER) $(CLIENT)
 
 $(SERVER):$(SERVER_FILES)
-	$(CC) -o $@ $(SERVER_FILES) $(LDFLAGS) $(CFLAGS)
+	$(CC) -o $@ $(SERVER_FILES) $(CFLAGS) $(LDFLAGS)
 $(CLIENT):$(CLIENT_FILES)
 	$(CC) -o $@ $(CLIENT_FILES) $(CFLAGS) $(LDFLAGS)
 

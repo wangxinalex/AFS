@@ -9,3 +9,4 @@ client_dir/
 testmd5
 dir/
 server_log
+*.swn

@@ -43,12 +43,16 @@ using namespace std;
 static int global_max_client = 0;
 vector<client> client_list;
 vector<file_node> file_list;
+pthread_rwlock_t client_list_lock;
+pthread_rwlock_t file_list_lock;
 const string server_dir = "server_dir/";
 const string server_log = "server_log";
 int max_file_uid = 0;
 char dummy[MAX_NAME];
 ofstream log_os;
 int main(int argc, char* argv[]){
+	pthread_rwlock_init(&client_list_lock, NULL);
+	pthread_rwlock_init(&file_list_lock, NULL);
 	pthread_t thread;
 	int sock;
 	struct addrinfo hints, *res;
@@ -110,6 +114,8 @@ int main(int argc, char* argv[]){
 		}
 
 	}
+	pthread_rwlock_destroy(&client_list_lock);
+	pthread_rwlock_destroy(&file_list_lock);
 	close(sock);
 	return 0;
 }
@@ -129,7 +135,11 @@ void *handle(void *p){
 		sprintf(recv_inst,"[INST from %d] %s\n", new_client_id,plain);
 		fputs(recv_inst, stdout);
 		log_os<<recv_inst<<flush;
+		pthread_rwlock_rdlock(&client_list_lock);
+		pthread_rwlock_rdlock(&file_list_lock);
 		return_value = echo_command(new_client_id,s=strdup( plain));
+		pthread_rwlock_unlock(&client_list_lock);
+		pthread_rwlock_unlock(&file_list_lock);
 		if(return_value == CLIENT_QUIT ){
 			break;
 		}
@@ -358,10 +368,14 @@ int open_file(int client_fd,char * command){
 }
 
 int add_file_list(int client_fd, char* file_name, int file_fd){
+	pthread_rwlock_unlock(&file_list_lock);
+	pthread_rwlock_wrlock(&file_list_lock);
 	int file_uid = __sync_fetch_and_add(&max_file_uid,1);
 	file_node new_file(file_uid, file_name, file_fd);
 	new_file.add_promise_id(client_fd);
 	file_list.push_back(new_file);
+	pthread_rwlock_unlock(&file_list_lock);
+	pthread_rwlock_rdlock(&file_list_lock);
 	return 0;
 }
 
@@ -532,10 +546,10 @@ int setlock_file(int client_fd, char * command){
 	}
 	iter->promise_rdlock();
 	if(iter->get_file_lock() != no_lock){
-		pass_client(client_fd,LOCK_FAIL);
+		pass_client(client_fd,LOCK_ALREADY);
 		printf("Already lccked\n");
-	}else if(lock == exclusive_lock && !iter->promise_list.empty()){
-		pass_client(client_fd,LOCK_FAIL);
+	}else if(lock == exclusive_lock && !iter->only_promise_id(client_fd)){
+		pass_client(client_fd,LOCK_OTHER_COPY);
 		printf("Others have copy\n");
 	}else{
 		iter->set_file_lock(lock);
@@ -725,12 +739,15 @@ vector<client>::const_iterator get_client(int client_id){
 }
 
 int add_client(int sock_fd){
+	pthread_rwlock_wrlock(&client_list_lock);
 	int client_fd = __sync_fetch_and_add(&global_max_client, 1);
 	client new_client(client_fd, sock_fd);
 	client_list.push_back(new_client);
+	printf("Add client %d\n", client_fd);
 	for(vector<file_node>::iterator iter = file_list.begin();iter!=file_list.end();iter++){
 		iter->add_promise_id(client_fd);
 	}
+	pthread_rwlock_unlock(&client_list_lock);
 	return client_fd;
 }
 
