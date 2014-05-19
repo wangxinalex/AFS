@@ -290,6 +290,7 @@ int create_file(int client_fd, char * command){
 	close(file_fd);
 	int file_uid = __sync_fetch_and_add(&max_file_uid,1);
 	file_node new_node(file_uid, file_name);
+	new_node.add_promise_id(client_fd);
 	file_list.push_back(new_node);
 	pass_client(client_fd,GENERAL_SUCCESS);
 	printf("Create %d %s\n", client_fd, file_name);

@@ -323,9 +323,10 @@ int read_file(int sockfd, char* command){
 	memset(buffer, 0, sizeof(buffer));
 	FILE* fp = fdopen(iter->get_file_des(),"r");
 	if(fp == NULL){
-		fprintf(stderr,"[ERROR] file %s open error\n", file_name);
+		perror("[ERROR] file open error\n");
 		return FILE_ERR;
 	}
+	rewind(fp);
 	while(fgets(buffer, MAX_BUFF, fp)!=NULL){
 		if(fputs(buffer, stdout)==EOF){
 			fprintf(stderr,"[ERROR] output error\n");
@@ -334,7 +335,7 @@ int read_file(int sockfd, char* command){
 	}
 	fflush(fp);
 	//fclose(fp);
-	printf("Read file %s succeeded\n", file_name);
+	printf("\nRead file %s succeeded\n", file_name);
 	return 0;
 }
 
@@ -354,8 +355,8 @@ int write_file(int sockfd, char* command){
 		return FORMAT_ERR;
 	}
 	vector<file_node>::iterator iter = find_file(file_name);
-	if(iter == file_list.end()||iter->get_file_des()==-1){
-		fprintf(stderr,"File %s not cached or opened\n",file_name);
+	if(iter == file_list.end()||iter->get_file_des() == -1){
+		fprintf(stderr,"File %s not cached or opened\n", file_name);
 		return FILE_ERR;
 	}
 	FILE* fp  = fdopen(iter->get_file_des(),"a+");
@@ -363,7 +364,7 @@ int write_file(int sockfd, char* command){
 		fprintf(stderr,"[ERROR] file %s open error\n", file_name);
 		return FILE_ERR;
 	}
-	if(fputs(content,fp )==EOF){
+	if(fprintf(fp, "%s\n", content) < 0){
 		fprintf(stderr,"[ERROR] file %s write error\n", file_name);
 		return FILE_ERR;
 	}
